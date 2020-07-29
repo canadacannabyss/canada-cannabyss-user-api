@@ -1,0 +1,24 @@
+{
+	"development": {
+		"config_id": "development",
+		"app_name": "Cryptic Activist User Api",
+		"app_desc": "Cryptic Activist User Restful Api",
+		"node_port": 5002,
+		"json_indentation": 2,
+		"database": "MongoDB Atlas: cryptic-activist-user-api"
+	},
+	"testing": {
+		"config_id": "testing",
+		"database": "Cryptic Activist User Restful Api"
+	},
+	"staging": {
+		"config_id": "staging",
+		"node_port": 4000,
+		"database": "Cryptic Activist User Restful Api"
+	},
+	"production": {
+		"config_id": "production",
+		"node_port": 80,
+		"database": "Cryptic Activist User Restful Api"
+	}
+}

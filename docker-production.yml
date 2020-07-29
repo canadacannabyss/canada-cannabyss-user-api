@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  app:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.frontend.rule=Host:api.crypticactivist.com"
+
+  reverse-proxy:
+    image: traefik:v2.0
+    command: --api.insecure=true --providers.docker
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
