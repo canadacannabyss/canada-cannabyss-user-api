@@ -18,6 +18,10 @@ const UserProfileImageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  updatedOn: {
+    type: Date,
+    required: false,
+  },
 });
 
 UserProfileImageSchema.pre('save', function () {
@@ -42,7 +46,7 @@ UserProfileImageSchema.pre('remove', function () {
       });
   }
   return promisify(fs.unlink)(
-    path.resolve(__dirname, '..', '..', 'tmp', 'uploads', this.key)
+    path.resolve(__dirname, '..', '..', 'tmp', 'uploads', this.key),
   );
 });
 
