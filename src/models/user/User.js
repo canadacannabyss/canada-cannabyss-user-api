@@ -45,6 +45,17 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  credits: {
+    type: Number,
+    required: false,
+    default: 0,
+  },
+  referral: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Referral',
+    required: false,
+    default: null,
+  },
   createdOn: {
     type: Date,
     default: Date.now,

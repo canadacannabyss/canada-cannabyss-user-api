@@ -11,9 +11,11 @@ const { generateAccessToken, decodeToken } = require('../../utils/jwt');
 const { slugifyUsername } = require('../../utils/user');
 const emailSend = require('../../services/emailSender');
 const emailSendResetPassword = require('../../services/emailSenderResetPassword');
+
 const User = require('../../models/user/User');
 const UserProfileImage = require('../../models/user/UserProfileImage');
 const RefreshToken = require('../../models/user/RefreshToken');
+const Referral = require('../../models/user/Referral');
 
 const router = express.Router();
 
@@ -144,8 +146,167 @@ router.post('/register', async (req, res) => {
                   if (err) throw err;
                   newUser.password = hash;
                   newUser.save().then((user) => {
-                    emailSend(user.email, user._id);
-                    res.status(200).send({ ok: true });
+                    const newReferral = new Referral({
+                      user: user._id,
+                      referredUsers: [],
+                      createdOn: Date.now(),
+                    });
+                    newReferral.save().then((referral) => {
+                      User.findOneAndUpdate({
+                        _id: user._id,
+                      }, {
+                        referral: referral._id,
+                      }, {
+                        runValidators: true,
+                      }).then((updatedUser) => {
+                        emailSend(user.email, user._id);
+                        res.status(200).send({ ok: true });
+                      });
+                    });
+                  });
+                });
+              });
+            })
+            .catch((err) => {
+              console.error(err);
+            });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }
+});
+
+router.post('/register/referral', async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    username,
+    email,
+    password,
+    password2,
+    referralId,
+  } = req.body;
+
+  const errors = [];
+  console.log('req.body:', req.body);
+
+  if (
+    !firstName
+    || firstName.length === 0
+    || !lastName
+    || lastName.length === 0
+    || !username
+    || username.length === 0
+    || !email
+    || email.length === 0
+    || !password
+    || password.length === 0
+    || !password2
+    || password2.length === 0
+  ) {
+    errors.push({ msg: 'Please enter all fields' });
+  }
+
+  const slugifiedUsername = slugifyUsername(username);
+
+  try {
+    const existingUser = await User.findOne({
+      username: slugifiedUsername,
+    });
+    if (existingUser) {
+      errors.push({ msg: 'Username already exist' });
+    }
+  } catch (err) {
+    console.error(err);
+    errors.push({ msg: 'Error while finding existing user' });
+  }
+
+  if (password !== password2) {
+    errors.push({ msg: 'Passwords do not match' });
+  }
+
+  if (password.length < 6) {
+    errors.push({ msg: 'Password must be at least 6 characters' });
+  }
+
+  if (errors.length > 0) {
+    res.json(errors);
+  } else {
+    User.findOne({ email })
+      .then((user) => {
+        if (user) {
+          errors.push({ msg: 'Email already exists' });
+          res.json(errors);
+        } else {
+          const id = uuid.v4();
+
+          const newUserProfileImage = new UserProfileImage({
+            id,
+            name: 'default-user.jpg',
+            size: 11800,
+            key: 'default/users/default-user.jpg',
+            url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
+          });
+
+          newUserProfileImage
+            .save()
+            .then((image) => {
+              const newUser = new User({
+                id,
+                names: {
+                  firstName,
+                  lastName,
+                },
+                email,
+                username: slugifiedUsername,
+                password,
+                profileImage: image._id,
+                isAdmin: false,
+                origin: 'Local',
+              });
+
+              bcrypt.genSalt(10, (err, salt) => {
+                bcrypt.hash(newUser.password, salt, (err, hash) => {
+                  if (err) throw err;
+                  newUser.password = hash;
+                  newUser.save().then((user) => {
+                    const newReferral = new Referral({
+                      user: user._id,
+                      referredUsers: [],
+                      createdOn: Date.now(),
+                    });
+                    newReferral.save().then((referral) => {
+                      User.findOneAndUpdate({
+                        _id: user._id,
+                      }, {
+                        referral: referral._id,
+                      }, {
+                        runValidators: true,
+                      }).then(() => {
+                        Referral.findOne({
+                          _id: referralId,
+                        }).then(((referral) => {
+                          const referredUsersObj = [...referral.referredUsers];
+                          referredUsersObj.push(user._id);
+                          Referral.findOneAndUpdate({
+                            _id: referral._id,
+                          }, {
+                            referredUsers: referredUsersObj,
+                          }, {
+                            runValidators: true,
+                          }).then(() => {
+                            emailSend(user.email, user._id);
+                            res.status(200).send({ ok: true });
+                          }).catch((err) => {
+                            console.log(err);
+                          });
+                        })).catch((err) => {
+                          console.error(err);
+                        });
+                      });
+                    });
                   });
                 });
               });
@@ -249,6 +410,9 @@ router.post('/decode/token', authenticateToken, (req, res) => {
     }).populate({
       path: 'profileImage',
       model: UserProfileImage,
+    }).populate({
+      path: 'referral',
+      model: Referral,
     });
     if (!userInfoObj) return res.sendStatus(404);
     return res.status(200).send(userInfoObj);
