@@ -433,8 +433,36 @@ router.get('/confirmation/:token', async (req, res) => {
       }, {
         runValidators: true,
       }).then((user) => {
+        console.log('user:', user);
         if (user) {
-          res.status(200).send(user);
+          Referral.findOne({
+            referredUsers: user._id,
+          }).then((referral) => {
+            console.log('referral:', referral);
+            if (referral) {
+              User.findOne({
+                _id: referral.user,
+              }).then((referralUser) => {
+                User.findOneAndUpdate({
+                  _id: referralUser._id,
+                }, {
+                  credits: referralUser.credits + 5,
+                }, {
+                  runValidators: true,
+                }).then(() => {
+                  res.status(200).send(user);
+                }).catch((err) => {
+                  console.error(err);
+                });
+              }).catch((err) => {
+                console.error(err);
+              });
+            } else {
+              res.status(200).send(user);
+            }
+          }).catch((err) => {
+            console.error(err);
+          });
         } else {
           res.status(404).send({ notValid: 'This link is not valid' });
         }
