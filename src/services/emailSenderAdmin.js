@@ -3,15 +3,29 @@ const jwt = require('jsonwebtoken');
 const emailConfirmationTemplate = require('../templates/emailConfirmationAdmin');
 
 module.exports = async (emailTo, userId) => {
-  const transporter = nodemailer.createTransport({
-    host: 'server148.web-hosting.com',
-    port: 465,
-    secure: true, // true for 465, false for other ports
-    auth: {
-      user: process.env.EMAIL_SMTP_USERNAME,
-      pass: process.env.EMAIL_SMTP_PASSWORD,
-    },
-  });
+  let transporterConfig;
+  if (process.env.NODE_ENV === 'production') {
+    transporterConfig = {
+      host: 'server148.web-hosting.com',
+      port: 465,
+      secure: true, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_SMTP_USERNAME,
+        pass: process.env.EMAIL_SMTP_PASSWORD,
+      },
+    };
+  } else if (process.env.NODE_ENV === 'development') {
+    transporterConfig = {
+      host: 'smtp.ethereal.email',
+      port: 587,
+      auth: {
+        user: process.env.TEST_EMAIL_USER,
+        pass: process.env.TEST_EMAIL_PASSWORD,
+      },
+    };
+  }
+
+  const transporter = nodemailer.createTransport(transporterConfig);
 
   jwt.sign({ userId }, process.env.EMAIL_SECRET, {
     expiresIn: '1d',

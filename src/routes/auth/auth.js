@@ -263,7 +263,9 @@ router.post('/register/referral', async (req, res) => {
                 username: slugifiedUsername,
                 password,
                 profileImage: image._id,
+                isVerified: false,
                 isAdmin: false,
+                isReseller: false,
                 origin: 'Local',
               });
 

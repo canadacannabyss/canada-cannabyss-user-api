@@ -1,8 +1,8 @@
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
-const emailConfirmationTemplate = require('../templates/emailConfirmation');
+const emailConfirmationTemplate = require('../templates/emailRegisterReseller');
 
-module.exports = async (emailTo, userId) => {
+module.exports = async (email, createdBy) => {
   let transporterConfig;
   if (process.env.NODE_ENV === 'production') {
     transporterConfig = {
@@ -27,19 +27,19 @@ module.exports = async (emailTo, userId) => {
 
   const transporter = nodemailer.createTransport(transporterConfig);
 
-  jwt.sign({ userId }, process.env.EMAIL_SECRET, {
-    expiresIn: '1d',
+  jwt.sign({ email, createdBy }, process.env.EMAIL_SECRET, {
+    expiresIn: '7d',
   }, async (err, emailToken) => {
     if (err) {
       console.error(err);
       throw new Error('Error while sending confirmation email.');
     }
-    const url = `${process.env.EMAIL_VERIFICATION_ACCOUNT_FRONTEND}/confirmation/${emailToken}`;
+    const url = `${process.env.EMAIL_VERIFICATION_ACCOUNT_FRONTEND}/reseller/registration/${emailToken}`;
 
     const info = await transporter.sendMail({
       from: `"Canada Cannabyss" <${process.env.EMAIL_SMTP_USERNAME}>`, // sender address
-      to: `${emailTo}`, // list of receivers
-      subject: 'Account Verification - Canada Cannabyss', // Subject line
+      to: `${email}`, // list of receivers
+      subject: 'Account Register Invitation | Reseller - Canada Cannabyss', // Subject line
       html: emailConfirmationTemplate(url),
     });
     console.log('Message sent: %s', info.messageId);

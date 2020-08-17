@@ -36,6 +36,11 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     require: true,
   },
+  isReseller: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
   isVerified: {
     type: Boolean,
     required: false,

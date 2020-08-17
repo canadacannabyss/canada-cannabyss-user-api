@@ -1,6 +1,4 @@
 const express = require('express');
-
-const router = express.Router();
 const uuid = require('uuid');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -8,19 +6,20 @@ const multer = require('multer');
 const _ = require('lodash');
 const authConfig = require('../../../config/auth');
 const multerConfig = require('../../../config/multer');
-const { authenticateToken } = require('../../../middleware/jwt');
-const { generateAccessToken, decodeToken } = require('../../../utils/jwt');
+
+const { generateAccessToken } = require('../../../utils/jwt');
 const { slugifyUsername } = require('../../../utils/user');
+
+const emailSendResellerRegister = require('../../../services/emailSenderResellerRegister');
 const emailSendAdmin = require('../../../services/emailSenderAdmin');
 const emailSendAdminResetPassword = require('../../../services/emailSenderResetAdminPassword');
+
 const UserProfileImage = require('../../../models/user/UserProfileImage');
 const User = require('../../../models/user/User');
+const TemporaryUserReseller = require('../../../models/user/TemporaryUserReseller');
+const Referral = require('../../../models/user/Referral');
 
-function generateToken(params = {}) {
-  return jwt.sign({ id: user.id }, authConfig.secret, {
-    expiresIn: 86400,
-  });
-}
+const router = express.Router();
 
 router.post('/verify/su', (req, res) => {
   const { user, password } = req.body;
@@ -60,6 +59,44 @@ router.get('/verify/admin/username/:username', (req, res) => {
         err,
       });
     });
+});
+
+router.post('/register/reseller/start', async (req, res) => {
+  const { email, createdBy } = req.body;
+
+  const errors = [];
+
+  if (!email || email.length === 0) {
+    errors.push({ msg: 'Please enter all fields' });
+  }
+
+  if (errors.length > 0) {
+    res.status(400).send(errors);
+  } else {
+    TemporaryUserReseller.findOne({ email })
+      .then((user) => {
+        console.log('user:', user);
+        if (user) {
+          errors.push({ msg: 'Email already exists' });
+          res.status(400).send(errors);
+        } else {
+          const newTemporaryUserReseller = new TemporaryUserReseller({
+            email,
+            createdBy,
+          });
+
+          newTemporaryUserReseller.save().then((userInfo) => {
+            emailSendResellerRegister(userInfo.email, userInfo.createdBy);
+            res.status(200).send({ email: userInfo.email, ok: true });
+          });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        errors.push({ msg: 'Server error' });
+        res.status(400).send(errors);
+      });
+  }
 });
 
 router.post('/register', async (req, res) => {
@@ -145,6 +182,7 @@ router.post('/register', async (req, res) => {
                 profileImage: image._id,
                 isVerified: false,
                 isAdmin: true,
+                isReseller: false,
                 origin: 'Local',
               });
 
@@ -153,8 +191,23 @@ router.post('/register', async (req, res) => {
                   if (err) throw err;
                   newUser.password = hash;
                   newUser.save().then((userInfo) => {
-                    emailSendAdmin(userInfo.email, userInfo._id);
-                    res.status(200).send({ ok: true });
+                    const newReferral = new Referral({
+                      user: userInfo._id,
+                      referredUsers: [],
+                      createdOn: Date.now(),
+                    });
+                    newReferral.save().then((referral) => {
+                      User.findOneAndUpdate({
+                        _id: userInfo._id,
+                      }, {
+                        referral: referral._id,
+                      }, {
+                        runValidators: true,
+                      }).then((updatedUser) => {
+                        emailSendAdmin(userInfo.email, userInfo._id);
+                        res.status(200).send({ ok: true });
+                      });
+                    });
                   });
                 });
               });

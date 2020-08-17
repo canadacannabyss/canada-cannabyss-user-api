@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
-const emailConfirmationTemplate = require('../templates/emailConfirmation');
+const emailConfirmationTemplate = require('../templates/emailConfirmationReseller');
 
 module.exports = async (emailTo, userId) => {
   let transporterConfig;
@@ -34,12 +34,12 @@ module.exports = async (emailTo, userId) => {
       console.error(err);
       throw new Error('Error while sending confirmation email.');
     }
-    const url = `${process.env.EMAIL_VERIFICATION_ACCOUNT_FRONTEND}/confirmation/${emailToken}`;
+    const url = `${process.env.EMAIL_VERIFICATION_ACCOUNT_FRONTEND}/reseller/confirmation/${emailToken}`;
 
     const info = await transporter.sendMail({
       from: `"Canada Cannabyss" <${process.env.EMAIL_SMTP_USERNAME}>`, // sender address
       to: `${emailTo}`, // list of receivers
-      subject: 'Account Verification - Canada Cannabyss', // Subject line
+      subject: 'Reseller Account Verification | Reseller - Canada Cannabyss', // Subject line
       html: emailConfirmationTemplate(url),
     });
     console.log('Message sent: %s', info.messageId);
