@@ -160,9 +160,17 @@ router.post('/register', async (req, res) => {
                         referral: referral._id,
                       }, {
                         runValidators: true,
-                      }).then(() => {
-                        emailSendReseller(userInfo.email, userInfo._id);
-                        res.status(200).send({ ok: true });
+                      }).then(async () => {
+                        try {
+                          emailSendReseller(userInfo.email, userInfo._id);
+                          const tempUserResellerObj = await TemporaryUserReseller.findOne({
+                            email: userInfo.email,
+                          });
+                          await tempUserResellerObj.remove();
+                          res.status(200).send({ ok: true });
+                        } catch (err) {
+                          console.error(err);
+                        }
                       });
                     });
                   });
@@ -177,6 +185,35 @@ router.post('/register', async (req, res) => {
       .catch((err) => {
         console.error(err);
       });
+  }
+});
+
+router.get('/confirmation/:token', async (req, res) => {
+  const { token } = req.params;
+  try {
+    jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
+      if (err) return res.status(404).send({ error: 'This link is expired' });
+      User.findOneAndUpdate({
+        _id: decodedToken.userId,
+        isVerified: false,
+        isReseller: true,
+      }, {
+        isVerified: true,
+      }, {
+        runValidators: true,
+      }).then((user) => {
+        if (user) {
+          res.status(200).send(user);
+        } else {
+          res.status(404).send({ notValid: 'This link is not valid' });
+        }
+      }).catch((err) => {
+        console.error(err);
+        res.sendStatus(400);
+      });
+    });
+  } catch (err) {
+    console.error(err);
   }
 });
 

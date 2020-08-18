@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const emailResetPasswordTemplate = require('../templates/emailAdminResetPassword');
 
 module.exports = async (emailTo, userId) => {
+  console.log('process.env.NODE_ENV:', process.env.NODE_ENV);
   let transporterConfig;
   if (process.env.NODE_ENV === 'production') {
     transporterConfig = {

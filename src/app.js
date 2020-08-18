@@ -69,6 +69,7 @@ app.use(
 app.use('/auth', require('./routes/auth/auth'));
 app.use('/users', require('./routes/users'));
 app.use('/resellers', require('./routes/reseller/resellers'));
+app.use('/resellers/auth', require('./routes/reseller/auth'));
 app.use('/admin/auth', require('./routes/admin/user/auth'));
 app.use('/referral', require('./routes/referral/referral'));
 

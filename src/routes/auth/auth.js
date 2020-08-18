@@ -354,6 +354,7 @@ router.post('/login', async (req, res) => {
 
     const user = await User.findOne({
       email,
+      isReseller: false,
       isAdmin: false,
       isVerified: true,
     });
