@@ -22,12 +22,12 @@ const Referral = require('../../../models/user/Referral');
 const router = express.Router();
 
 router.post('/verify/su', (req, res) => {
-  const { user, password } = req.body;
+  const { username, password } = req.body;
   const su = {
-    user: 'su',
-    password: 'su',
+    username: process.env.SU_USERNAME,
+    password: process.env.SU_PASSWORD,
   };
-  if (user === su.user && password === su.password) {
+  if (username === su.username && password === su.password) {
     res.status(200).send({
       isSU: true,
     });

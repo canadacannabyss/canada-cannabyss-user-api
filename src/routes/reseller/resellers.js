@@ -20,7 +20,6 @@ router.get('/verify/registration/:token', async (req, res) => {
   try {
     jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
       if (err) return res.status(404).send({ error: 'This link is expired' });
-      console.log('decoedToken:', decodedToken);
       TemporaryUserReseller.findOne({
         email: decodedToken.email,
         createdBy: decodedToken.createdBy,
@@ -29,7 +28,15 @@ router.get('/verify/registration/:token', async (req, res) => {
         model: User,
       })
         .then((tempUser) => {
-          res.status(200).send(tempUser);
+          let tempUserObj;
+          if (!tempUser) {
+            tempUserObj = {
+              error: 'Invalid link',
+            };
+          } else {
+            tempUserObj = tempUser;
+          }
+          res.status(200).send(tempUserObj);
         }).catch((error) => {
           console.error(error);
         });

@@ -35,7 +35,7 @@ module.exports = async (emailTo, userId) => {
       console.error(err);
       throw new Error('Error while sending confirmation email.');
     }
-    const url = `${process.env.EMAIL_VERIFICATION_ACCOUNT_FRONTEND}/reseller/confirmation/${emailToken}`;
+    const url = `${process.env.RESELLER_APP_URL}/confirmation/${emailToken}`;
 
     const info = await transporter.sendMail({
       from: `"Canada Cannabyss" <${process.env.EMAIL_SMTP_USERNAME}>`, // sender address
