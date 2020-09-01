@@ -14,6 +14,8 @@ const config = require('./config/config');
 require('dotenv').config();
 require('./config/passport')(passport);
 
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 // config variables
 // eslint-disable-next-line no-unused-vars
 
