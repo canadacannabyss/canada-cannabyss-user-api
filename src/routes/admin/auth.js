@@ -4,20 +4,21 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const _ = require('lodash');
-const authConfig = require('../../../config/auth');
-const multerConfig = require('../../../config/multer');
+const authConfig = require('../../config/auth');
+const multerConfig = require('../../config/multer');
 
-const { generateAccessToken } = require('../../../utils/jwt');
-const { slugifyUsername } = require('../../../utils/user');
+const { generateAccessToken } = require('../../utils/jwt');
+const { slugifyUsername } = require('../../utils/user');
+const { authenticateToken } = require('../../middleware/jwt');
 
-const emailSendResellerRegister = require('../../../services/emailSenderResellerRegister');
-const emailSendAdmin = require('../../../services/emailSenderAdmin');
-const emailSendAdminResetPassword = require('../../../services/emailSenderResetAdminPassword');
+const emailSendResellerRegister = require('../../services/emailSenderResellerRegister');
+const emailSendAdmin = require('../../services/emailSenderAdmin');
+const emailSendAdminResetPassword = require('../../services/emailSenderResetAdminPassword');
 
-const UserProfileImage = require('../../../models/user/UserProfileImage');
-const User = require('../../../models/user/User');
-const TemporaryUserReseller = require('../../../models/user/TemporaryUserReseller');
-const Referral = require('../../../models/user/Referral');
+const AdminProfileImage = require('../../models/admin/AdminProfileImage');
+const Admin = require('../../models/admin/Admin');
+const TemporaryReseller = require('../../models/reseller/TemporaryReseller');
+const AdminReferral = require('../../models/admin/AdminReferral');
 
 const router = express.Router();
 
@@ -42,7 +43,7 @@ router.get('/verify/admin/username/:username', (req, res) => {
   const { username } = req.params;
   console.log('username:', username);
   let valid = true;
-  User.find({
+  Admin.find({
     username,
   })
     .then((users) => {
@@ -73,19 +74,19 @@ router.post('/register/reseller/start', async (req, res) => {
   if (errors.length > 0) {
     res.status(400).send(errors);
   } else {
-    TemporaryUserReseller.findOne({ email })
+    TemporaryReseller.findOne({ email })
       .then((user) => {
         console.log('user:', user);
         if (user) {
           errors.push({ msg: 'Email already exists' });
           res.status(400).send(errors);
         } else {
-          const newTemporaryUserReseller = new TemporaryUserReseller({
+          const newTemporaryReseller = new TemporaryReseller({
             email,
             createdBy,
           });
 
-          newTemporaryUserReseller.save().then((userInfo) => {
+          newTemporaryReseller.save().then((userInfo) => {
             emailSendResellerRegister(userInfo.email, userInfo.createdBy);
             res.status(200).send({ email: userInfo.email, ok: true });
           });
@@ -104,10 +105,7 @@ router.post('/register', async (req, res) => {
     firstName, lastName, username, email, password, password2,
   } = req.body;
 
-  console.log(firstName, lastName, username, email, password, password2);
-
   const errors = [];
-  console.log('req.body:', req.body);
 
   if (
     !firstName
@@ -129,7 +127,7 @@ router.post('/register', async (req, res) => {
   const slugifiedUsername = slugifyUsername(username);
 
   try {
-    const existingUser = await User.findOne({
+    const existingUser = await Admin.findOne({
       username: slugifiedUsername,
     });
     if (existingUser) {
@@ -151,7 +149,7 @@ router.post('/register', async (req, res) => {
   if (errors.length > 0) {
     res.json(errors);
   } else {
-    User.findOne({ email })
+    Admin.findOne({ email })
       .then((user) => {
         if (user) {
           errors.push({ msg: 'Email already exists' });
@@ -159,7 +157,7 @@ router.post('/register', async (req, res) => {
         } else {
           const id = uuid.v4();
 
-          const newUserProfileImage = new UserProfileImage({
+          const newAdminProfileImage = new AdminProfileImage({
             id,
             name: 'default-user.jpg',
             size: 11800,
@@ -167,10 +165,10 @@ router.post('/register', async (req, res) => {
             url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
           });
 
-          newUserProfileImage
+          newAdminProfileImage
             .save()
             .then((image) => {
-              const newUser = new User({
+              const newUser = new Admin({
                 id,
                 names: {
                   firstName,
@@ -181,8 +179,6 @@ router.post('/register', async (req, res) => {
                 password,
                 profileImage: image._id,
                 isVerified: false,
-                isAdmin: true,
-                isReseller: false,
                 origin: 'Local',
               });
 
@@ -191,13 +187,13 @@ router.post('/register', async (req, res) => {
                   if (err) throw err;
                   newUser.password = hash;
                   newUser.save().then((userInfo) => {
-                    const newReferral = new Referral({
-                      user: userInfo._id,
-                      referredUsers: [],
+                    const newAdminReferral = new AdminReferral({
+                      admin: userInfo._id,
+                      referredAdmins: [],
                       createdOn: Date.now(),
                     });
-                    newReferral.save().then((referral) => {
-                      User.findOneAndUpdate({
+                    newAdminReferral.save().then((referral) => {
+                      Admin.findOneAndUpdate({
                         _id: userInfo._id,
                       }, {
                         referral: referral._id,
@@ -233,15 +229,13 @@ router.post('/login', async (req, res) => {
       errors.push({ msg: 'Please enter all fields' });
     }
 
-    const user = await User.findOne({
+    const user = await Admin.findOne({
       email,
-      isAdmin: true,
       isVerified: true,
-      isReseller: false,
     });
 
     if (!user) {
-      errors.push({ msg: 'User does not exist' });
+      errors.push({ msg: 'Admin does not exist' });
     }
 
     if (errors.length > 0) {
@@ -282,12 +276,33 @@ router.post('/login', async (req, res) => {
   }
 });
 
+router.post('/decode/token', authenticateToken, (req, res) => {
+  const { accessToken } = req.body;
+  const authHeader = req.headers.authorization;
+  const tokenHeader = authHeader && authHeader.split(' ')[1];
+  if (accessToken !== tokenHeader) return res.sendStatus(403);
+  jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, async (err, user) => {
+    if (err) return res.sendStatus(403);
+    const userInfoObj = await Admin.findOne({
+      _id: user.id,
+    }).populate({
+      path: 'profileImage',
+      model: AdminProfileImage,
+    }).populate({
+      path: 'referral',
+      model: AdminReferral,
+    });
+    if (!userInfoObj) return res.sendStatus(404);
+    return res.status(200).send(userInfoObj);
+  });
+});
+
 router.post('/reset-password/sent', async (req, res) => {
   const { email } = req.body;
 
   console.log('email:', email);
 
-  User.findOne({
+  Admin.findOne({
     email,
     isAdmin: true,
   }).then((user) => {
@@ -316,7 +331,7 @@ router.get('/reset-password/validating/token/:token', async (req, res) => {
     jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
       console.log(err);
       if (err) return res.status(404).send({ error: 'This link is expired' });
-      User.findOne({
+      Admin.findOne({
         _id: decodedToken.userId,
       }).then((user) => {
         if (user) {
@@ -349,7 +364,7 @@ router.post('/reset-password', async (req, res) => {
       jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
         if (err) return res.status(404).send({ error: 'This link is expired' });
 
-        User.findOne({
+        Admin.findOne({
           _id: decodedToken.userId,
         }).then((user) => {
           bcrypt.compare(password, user.password, (err, isMatch) => {
@@ -361,7 +376,7 @@ router.post('/reset-password', async (req, res) => {
               bcrypt.genSalt(10, (err, salt) => {
                 bcrypt.hash(password, salt, (err, hash) => {
                   if (err) throw err;
-                  User.findOneAndUpdate({
+                  Admin.findOneAndUpdate({
                     _id: user._id,
                   }, {
                     password: hash,
@@ -396,10 +411,9 @@ router.get('/confirmation/:token', async (req, res) => {
   try {
     jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
       if (err) return res.status(404).send({ error: 'This link is expired' });
-      User.findOneAndUpdate({
+      Admin.findOneAndUpdate({
         _id: decodedToken.userId,
         isVerified: false,
-        isAdmin: true,
       }, {
         isVerified: true,
       }, {
@@ -431,7 +445,7 @@ router.post(
       } = req.file;
       const id = uuidv4();
 
-      const adminUserProfileImage = await UserProfileImage.create({
+      const adminAdminProfileImage = await AdminProfileImage.create({
         id,
         name,
         size,
@@ -439,7 +453,7 @@ router.post(
         url,
       });
 
-      res.status(200).send(adminUserProfileImage);
+      res.status(200).send(adminAdminProfileImage);
     } catch (err) {
       console.log(err);
     }
@@ -461,7 +475,7 @@ router.delete('/delete/cover/:id', async (req, res) => {
   const { id } = req.params;
   try {
     console.log('deleting:', id);
-    const profilePicture = await UserProfileImage.findOne({
+    const profilePicture = await AdminProfileImage.findOne({
       id,
     });
     await profilePicture.remove();

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const UserSchema = new mongoose.Schema({
+const CustomerSchema = new mongoose.Schema({
   id: {
     type: String,
     require: true,
@@ -19,6 +19,11 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  phone: {
+    type: String,
+    required: false,
+    default: '',
+  },
   username: {
     type: String,
     required: false,
@@ -34,17 +39,8 @@ const UserSchema = new mongoose.Schema({
   },
   profileImage: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'UserProfileImage',
+    ref: 'CustomerProfileImage',
     required: false,
-  },
-  isAdmin: {
-    type: Boolean,
-    require: true,
-  },
-  isReseller: {
-    type: Boolean,
-    required: false,
-    default: false,
   },
   isVerified: {
     type: Boolean,
@@ -62,7 +58,7 @@ const UserSchema = new mongoose.Schema({
   },
   referral: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Referral',
+    ref: 'CustomerReferral',
     required: false,
     default: null,
   },
@@ -76,6 +72,6 @@ const UserSchema = new mongoose.Schema({
   },
 });
 
-const User = mongoose.model('User', UserSchema);
+const Customer = mongoose.model('Customer', CustomerSchema);
 
-module.exports = User;
+module.exports = Customer;
