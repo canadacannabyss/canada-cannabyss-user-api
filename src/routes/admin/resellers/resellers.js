@@ -107,4 +107,38 @@ router.put('/update/:id', async (req, res) => {
   }
 });
 
+router.delete('/delete/reseller/:resellerId', async (req, res) => {
+  const { resellerId } = req.params;
+
+  try {
+    const resellerObj = await Reseller.findOne({
+      _id: resellerId,
+    })
+      .populate({
+        path: 'profileImage',
+        model: ResellerProfileImage,
+      })
+      .populate({
+        path: 'referral',
+        model: ResellerReferral,
+      });
+
+    const resellerProfileImageObj = await ResellerProfileImage.findOne({
+      _id: resellerObj.profileImage._id,
+    });
+
+    const resellerReferralObj = await ResellerReferral.findOne({
+      _id: resellerObj.referral._id,
+    });
+
+    resellerProfileImageObj.remove();
+    resellerReferralObj.remove();
+    resellerObj.remove();
+
+    res.status(200).send({ ok: true });
+  } catch (err) {
+    console.log(err);
+  }
+});
+
 module.exports = router;
