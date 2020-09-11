@@ -25,6 +25,40 @@ router.get('/verify/registration/:token', async (req, res) => {
       if (err) return res.status(404).send({ error: 'This link is expired' });
       TemporaryReseller.findOne({
         email: decodedToken.email,
+        isCanadaCannabyssTeam: false,
+        createdBy: decodedToken.createdBy,
+      }).populate({
+        path: 'createdBy',
+        model: Admin,
+      })
+        .then((tempUser) => {
+          let tempUserObj;
+          if (!tempUser) {
+            tempUserObj = {
+              error: 'Invalid link',
+            };
+          } else {
+            tempUserObj = tempUser;
+          }
+          res.status(200).send(tempUserObj);
+        }).catch((error) => {
+          console.error(error);
+        });
+    });
+  } catch (err) {
+    console.log(err);
+  }
+});
+
+router.get('/verify/registration/main/:token', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
+      if (err) return res.status(404).send({ error: 'This link is expired' });
+      TemporaryReseller.findOne({
+        email: decodedToken.email,
+        isCanadaCannabyssTeam: true,
         createdBy: decodedToken.createdBy,
       }).populate({
         path: 'createdBy',
@@ -139,6 +173,273 @@ router.post('/register', async (req, res) => {
             .then((image) => {
               const newUser = new Reseller({
                 id,
+                isCanadaCannabyssTeam: false,
+                names: {
+                  firstName,
+                  lastName,
+                },
+                email,
+                username: slugifiedUsername,
+                password,
+                profileImage: image._id,
+                isVerified: false,
+                origin: 'Local',
+              });
+
+              bcrypt.genSalt(10, (saltError, salt) => {
+                bcrypt.hash(newUser.password, salt, (hashError, hash) => {
+                  if (hashError) throw hashError;
+                  newUser.password = hash;
+                  newUser.save().then((userInfo) => {
+                    const newResellerReferral = new ResellerReferral({
+                      reseller: userInfo._id,
+                      referredResellers: [],
+                      createdOn: Date.now(),
+                    });
+                    newResellerReferral.save().then((referral) => {
+                      Reseller.findOneAndUpdate({
+                        _id: userInfo._id,
+                      }, {
+                        referral: referral._id,
+                      }, {
+                        runValidators: true,
+                      }).then(async () => {
+                        try {
+                          emailSendReseller(userInfo.email, userInfo._id);
+                          const tempUserResellerObj = await TemporaryReseller.findOne({
+                            email: userInfo.email,
+                          });
+                          await tempUserResellerObj.remove();
+                          res.status(200).send({ ok: true });
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      });
+                    });
+                  });
+                });
+              });
+            })
+            .catch((err) => {
+              console.error(err);
+            });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }
+});
+
+router.post('/referral/register', async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    username,
+    email,
+    password,
+    password2,
+    referralId,
+  } = req.body;
+
+  const errors = [];
+
+  if (firstName.length === 0
+    && lastName.length === 0
+    && username.length === 0
+    && email.length === 0
+    && password.length === 0
+    && password2.length === 0) {
+    errors.push({ msg: 'All fields must me filled' });
+  }
+
+  if (password !== password2) {
+    errors.push({ msg: 'Passwords must match' });
+  }
+
+  if (password.length < 6) {
+    errors.push({ msg: 'Password must be at least 6 characters' });
+  }
+
+  const slugifiedUsername = slugifyUsername(username);
+
+  try {
+    const existingUser = await Reseller.findOne({
+      username: slugifiedUsername,
+    });
+    if (existingUser) {
+      errors.push({ msg: 'Username already exist' });
+    }
+  } catch (err) {
+    console.error(err);
+    errors.push({ msg: 'Error while finding existing user' });
+  }
+
+  if (errors.length > 0) {
+    res.status(400).send(errors);
+  } else {
+    Reseller.findOne({ email })
+      .then((user) => {
+        if (user) {
+          errors.push({ msg: 'Email already exists' });
+          res.json(errors);
+        } else {
+          const id = uuid.v4();
+
+          const newResellerProfileImage = new ResellerProfileImage({
+            id,
+            name: 'default-user.jpg',
+            size: 11800,
+            key: 'default/users/default-user.jpg',
+            url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
+          });
+
+          newResellerProfileImage
+            .save()
+            .then((image) => {
+              const newUser = new Reseller({
+                id,
+                isCanadaCannabyssTeam: false,
+                names: {
+                  firstName,
+                  lastName,
+                },
+                email,
+                username: slugifiedUsername,
+                password,
+                profileImage: image._id,
+                isVerified: false,
+                origin: 'Local',
+              });
+
+              bcrypt.genSalt(10, (saltError, salt) => {
+                bcrypt.hash(newUser.password, salt, (hashError, hash) => {
+                  if (hashError) throw hashError;
+                  newUser.password = hash;
+                  newUser.save().then((userInfo) => {
+                    const newResellerReferral = new ResellerReferral({
+                      reseller: userInfo._id,
+                      referredResellers: [],
+                      createdOn: Date.now(),
+                    });
+                    newResellerReferral.save().then((referral) => {
+                      Reseller.findOneAndUpdate({
+                        _id: userInfo._id,
+                      }, {
+                        referral: referral._id,
+                      }, {
+                        runValidators: true,
+                      }).then(() => {
+                        ResellerReferral.findOne({
+                          _id: referralId,
+                        }).then((referralObj) => {
+                          const referraledUsersObj = [...referralObj.referredResellers];
+                          referraledUsersObj.push(userInfo._id);
+
+                          ResellerReferral.findOneAndUpdate({
+                            _id: referralId,
+                          }, {
+                            referredResellers: referraledUsersObj,
+                          }, {
+                            runValidators: true,
+                          }).then(() => {
+                            try {
+                              emailSendReseller(userInfo.email, userInfo._id);
+                              res.status(200).send({ ok: true });
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }).catch((err) => {
+                            console.error(err);
+                          });
+                        }).catch((err) => {
+                          console.log(err);
+                        });
+                      });
+                    });
+                  });
+                });
+              });
+            })
+            .catch((err) => {
+              console.error(err);
+            });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  }
+});
+
+router.post('/main/register', async (req, res) => {
+  const {
+    firstName,
+    lastName,
+    username,
+    email,
+    password,
+    password2,
+  } = req.body;
+
+  const errors = [];
+
+  if (firstName.length === 0
+    && lastName.length === 0
+    && username.length === 0
+    && email.length === 0
+    && password.length === 0
+    && password2.length === 0) {
+    errors.push({ msg: 'All fields must me filled' });
+  }
+
+  if (password !== password2) {
+    errors.push({ msg: 'Passwords must match' });
+  }
+
+  if (password.length < 6) {
+    errors.push({ msg: 'Password must be at least 6 characters' });
+  }
+
+  const slugifiedUsername = slugifyUsername(username);
+
+  try {
+    const existingUser = await Reseller.findOne({
+      username: slugifiedUsername,
+    });
+    if (existingUser) {
+      errors.push({ msg: 'Username already exist' });
+    }
+  } catch (err) {
+    console.error(err);
+    errors.push({ msg: 'Error while finding existing user' });
+  }
+
+  if (errors.length > 0) {
+    res.status(400).send(errors);
+  } else {
+    Reseller.findOne({ email })
+      .then((user) => {
+        if (user) {
+          errors.push({ msg: 'Email already exists' });
+          res.json(errors);
+        } else {
+          const id = uuid.v4();
+
+          const newResellerProfileImage = new ResellerProfileImage({
+            id,
+            name: 'default-user.jpg',
+            size: 11800,
+            key: 'default/users/default-user.jpg',
+            url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
+          });
+
+          newResellerProfileImage
+            .save()
+            .then((image) => {
+              const newUser = new Reseller({
+                id,
+                isCanadaCannabyssTeam: true,
                 names: {
                   firstName,
                   lastName,

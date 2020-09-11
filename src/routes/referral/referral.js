@@ -6,9 +6,9 @@ const Customer = require('../../models/customer/Customer');
 const Admin = require('../../models/admin/Admin');
 const Reseller = require('../../models/reseller/Reseller');
 
-const CustomerProfileImage = require('../../models/user/UserProfileImage');
-const AdminProfileImage = require('../../models/user/UserProfileImage');
-const ResellerProfileImage = require('../../models/user/UserProfileImage');
+const CustomerProfileImage = require('../../models/customer/CustomerProfileImage');
+const AdminProfileImage = require('../../models/admin/AdminProfileImage');
+const ResellerProfileImage = require('../../models/reseller/ResellerProfileImage');
 
 const CustomerReferral = require('../../models/customer/CustomerReferral');
 const AdminReferral = require('../../models/admin/AdminReferral');
@@ -19,14 +19,15 @@ router.get('/customer/verify', (req, res) => {
   let found = true;
   CustomerReferral.findOne({
     _id: referral,
-  }).then((referralObj) => {
-    console.log('referralObj:', referralObj);
-    if (!referralObj) found = false;
-    console.log('found:', found);
-    res.json(found);
-  }).catch((err) => {
-    res.json(false);
-  });
+  })
+    .then((referralObj) => {
+      if (!referralObj) found = false;
+      res.json(found);
+    })
+    .catch((err) => {
+      console.log(err);
+      res.json(false);
+    });
 });
 
 router.get('/admin/verify', (req, res) => {
@@ -35,26 +36,32 @@ router.get('/admin/verify', (req, res) => {
   console.log('referral:', referral);
   AdminReferral.findOne({
     _id: referral,
-  }).then((referralObj) => {
-    if (!referralObj) found = false;
-    res.json(found);
-  }).catch((err) => {
-    res.json(false);
-  });
+  })
+    .then((referralObj) => {
+      if (!referralObj) found = false;
+      res.json(found);
+    })
+    .catch((err) => {
+      console.log(err);
+      res.json(false);
+    });
 });
 
 router.get('/reseller/verify', (req, res) => {
   const { referral } = req.query;
   let found = true;
-  console.log('referral:', referral);
+
   ResellerReferral.findOne({
     _id: referral,
-  }).then((referralObj) => {
-    if (!referralObj) found = false;
-    res.json(found);
-  }).catch((err) => {
-    res.json(false);
-  });
+  })
+    .then((referralObj) => {
+      if (!referralObj) found = false;
+      res.json(found);
+    })
+    .catch((err) => {
+      console.log(err);
+      res.json(false);
+    });
 });
 
 router.get('/customer', (req, res) => {
@@ -62,10 +69,11 @@ router.get('/customer', (req, res) => {
 
   CustomerReferral.findOne({
     _id: referral,
-  }).populate({
-    path: 'customer',
-    model: Customer,
   })
+    .populate({
+      path: 'customer',
+      model: Customer,
+    })
     .then((referralObj) => {
       res.json({
         names: {
@@ -73,7 +81,8 @@ router.get('/customer', (req, res) => {
           lastName: referralObj.customer.names.lastName,
         },
       });
-    }).catch((err) => {
+    })
+    .catch((err) => {
       res.json(false);
     });
 });
@@ -83,10 +92,11 @@ router.get('/admin', (req, res) => {
 
   AdminReferral.findOne({
     _id: referral,
-  }).populate({
-    path: 'admin',
-    model: Admin,
   })
+    .populate({
+      path: 'admin',
+      model: Admin,
+    })
     .then((referralObj) => {
       res.json({
         names: {
@@ -94,7 +104,8 @@ router.get('/admin', (req, res) => {
           lastName: referralObj.admin.names.lastName,
         },
       });
-    }).catch((err) => {
+    })
+    .catch((err) => {
       res.json(false);
     });
 });
@@ -104,10 +115,11 @@ router.get('/reseller', (req, res) => {
 
   ResellerReferral.findOne({
     _id: referral,
-  }).populate({
-    path: 'reseller',
-    model: Reseller,
   })
+    .populate({
+      path: 'reseller',
+      model: Reseller,
+    })
     .then((referralObj) => {
       res.json({
         names: {
@@ -115,8 +127,9 @@ router.get('/reseller', (req, res) => {
           lastName: referralObj.reseller.names.lastName,
         },
       });
-    }).catch((err) => {
-      res.json(false);
+    })
+    .catch((err) => {
+      res.json({ ok: false });
     });
 });
 
@@ -125,17 +138,19 @@ router.get('/customer/get/invited-friends/:customerId', (req, res) => {
 
   CustomerReferral.findOne({
     customer: customerId,
-  }).populate({
-    path: 'referredCustomers',
-    model: Customer,
-    populate: {
-      path: 'profileImage',
-      model: CustomerProfileImage,
-    },
   })
+    .populate({
+      path: 'referredCustomers',
+      model: Customer,
+      populate: {
+        path: 'profileImage',
+        model: CustomerProfileImage,
+      },
+    })
     .then((referralObj) => {
       res.status(200).send(referralObj.referredCustomers);
-    }).catch((err) => {
+    })
+    .catch((err) => {
       console.log(err);
     });
 });
@@ -144,18 +159,20 @@ router.get('/admin/get/invited-friends/:adminId', (req, res) => {
   const { adminId } = req.params;
 
   AdminReferral.findOne({
-    user: adminId,
-  }).populate({
-    path: 'referredAdmins',
-    model: Admin,
-    populate: {
-      path: 'profileImage',
-      model: AdminProfileImage,
-    },
+    admin: adminId,
   })
+    .populate({
+      path: 'referredAdmins',
+      model: Admin,
+      populate: {
+        path: 'profileImage',
+        model: AdminProfileImage,
+      },
+    })
     .then((referralObj) => {
       res.status(200).send(referralObj.referredAdmins);
-    }).catch((err) => {
+    })
+    .catch((err) => {
       console.log(err);
     });
 });
@@ -164,18 +181,20 @@ router.get('/reseller/get/invited-friends/:resellerId', (req, res) => {
   const { resellerId } = req.params;
 
   ResellerReferral.findOne({
-    user: resellerId,
-  }).populate({
-    path: 'referredResellers',
-    model: Reseller,
-    populate: {
-      path: 'profileImage',
-      model: ResellerProfileImage,
-    },
+    reseller: resellerId,
   })
+    .populate({
+      path: 'referredResellers',
+      model: Reseller,
+      populate: {
+        path: 'profileImage',
+        model: ResellerProfileImage,
+      },
+    })
     .then((referralObj) => {
       res.status(200).send(referralObj.referredResellers);
-    }).catch((err) => {
+    })
+    .catch((err) => {
       console.log(err);
     });
 });

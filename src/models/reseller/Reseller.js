@@ -5,6 +5,16 @@ const ResellerSchema = new mongoose.Schema({
     type: String,
     require: true,
   },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ResellerCompany',
+    required: false,
+  },
+  isCanadaCannabyssTeam: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
   names: {
     firstName: {
       type: String,

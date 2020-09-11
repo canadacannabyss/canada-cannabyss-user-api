@@ -5,6 +5,11 @@ const TemporaryResellerSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  isCanadaCannabyssTeam: {
+    type: Boolean,
+    required: false,
+    default: false,
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin',

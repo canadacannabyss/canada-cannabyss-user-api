@@ -12,6 +12,7 @@ const { slugifyUsername } = require('../../utils/user');
 const { authenticateToken } = require('../../middleware/jwt');
 
 const emailSendResellerRegister = require('../../services/emailSenderResellerRegister');
+const emailSendCanadaCannabyssTeamResellerRegister = require('../../services/emailSenderCanadaCannabyssTeamResellerRegister');
 const emailSendAdmin = require('../../services/emailSenderAdmin');
 const emailSendAdminResetPassword = require('../../services/emailSenderResetAdminPassword');
 
@@ -83,11 +84,51 @@ router.post('/register/reseller/start', async (req, res) => {
         } else {
           const newTemporaryReseller = new TemporaryReseller({
             email,
+            isCanadaCannabyssTeam: false,
             createdBy,
           });
 
           newTemporaryReseller.save().then((userInfo) => {
             emailSendResellerRegister(userInfo.email, userInfo.createdBy);
+            res.status(200).send({ email: userInfo.email, ok: true });
+          });
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        errors.push({ msg: 'Server error' });
+        res.status(400).send(errors);
+      });
+  }
+});
+
+router.post('/register/main/reseller/start', async (req, res) => {
+  const { email, createdBy } = req.body;
+
+  const errors = [];
+
+  if (!email || email.length === 0) {
+    errors.push({ msg: 'Please enter all fields' });
+  }
+
+  if (errors.length > 0) {
+    res.status(400).send(errors);
+  } else {
+    TemporaryReseller.findOne({ email })
+      .then((user) => {
+        console.log('user:', user);
+        if (user) {
+          errors.push({ msg: 'Email already exists' });
+          res.status(400).send(errors);
+        } else {
+          const newTemporaryReseller = new TemporaryReseller({
+            email,
+            isCanadaCannabyssTeam: true,
+            createdBy,
+          });
+
+          newTemporaryReseller.save().then((userInfo) => {
+            emailSendCanadaCannabyssTeamResellerRegister(userInfo.email, userInfo.createdBy);
             res.status(200).send({ email: userInfo.email, ok: true });
           });
         }
@@ -170,6 +211,7 @@ router.post('/register', async (req, res) => {
             .then((image) => {
               const newUser = new Admin({
                 id,
+                isCanadaCannabyssTeam: false,
                 names: {
                   firstName,
                   lastName,
