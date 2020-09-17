@@ -43,6 +43,19 @@ router.get('', (req, res) => {
   });
 });
 
+router.get('/panel', (req, res) => {
+  Reseller.find()
+    .populate({
+      path: 'profileImage',
+      model: ResellerProfileImage,
+    })
+    .then((users) => {
+      res.status(200).send(users);
+    }).catch((err) => {
+      console.log(err);
+    });
+});
+
 router.get('/:username', (req, res) => {
   const { username } = req.params;
   Reseller.findOne({
