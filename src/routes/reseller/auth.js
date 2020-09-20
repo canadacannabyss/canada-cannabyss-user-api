@@ -8,6 +8,7 @@ const { generateAccessToken } = require('../../utils/jwt');
 const { authenticateToken } = require('../../middleware/jwt');
 
 const emailSendReseller = require('../../services/emailSenderReseller');
+const emailSendResellerResetPassword = require('../../services/emailSenderResetResellerPassword');
 
 const Reseller = require('../../models/reseller/Reseller');
 const ResellerProfileImage = require('../../models/reseller/ResellerProfileImage');
@@ -603,6 +604,114 @@ router.post('/decode/token', authenticateToken, (req, res) => {
     if (!userInfoObj) return res.sendStatus(404);
     return res.status(200).send(userInfoObj);
   });
+});
+
+router.post('/reset-password/sent', async (req, res) => {
+  const { email } = req.body;
+
+  console.log('body:', req.body);
+
+  Reseller.findOne({
+    email,
+  }).then((user) => {
+    if (user) {
+      emailSendResellerResetPassword(user.email, user._id);
+      res.status(200).send({
+        ok: true,
+      });
+    } else {
+      res.status(404).send({
+        error: 'Account not found.',
+      });
+    }
+  }).catch((err) => {
+    console.error(err);
+    res.status(404).send({
+      error: 'Something went wrong.',
+    });
+  });
+});
+
+router.get('/reset-password/validating/token/:token', async (req, res) => {
+  const { token } = req.params;
+  console.log('testing token:', token);
+  try {
+    jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
+      console.log(err);
+      if (err) return res.status(404).send({ error: 'This link is expired' });
+      Reseller.findOne({
+        _id: decodedToken.userId,
+      }).then((user) => {
+        if (user) {
+          res.status(200).send(user);
+        } else {
+          res.status(404).send({ notValid: 'This link is not valid' });
+        }
+      }).catch((err) => {
+        console.error(err);
+        res.sendStatus(400);
+      });
+    });
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  const {
+    token,
+    password,
+    password2,
+  } = req.body;
+
+  console.log(password,
+    password2);
+
+  try {
+    if (password === password2) {
+      jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
+        if (err) return res.status(404).send({ error: 'This link is expired' });
+
+        Reseller.findOne({
+          _id: decodedToken.userId,
+        }).then((user) => {
+          bcrypt.compare(password, user.password, (err, isMatch) => {
+            if (err) throw err;
+
+            if (isMatch) {
+              console.log({ error: 'Do not use the your current password.' });
+            } else {
+              bcrypt.genSalt(10, (err, salt) => {
+                bcrypt.hash(password, salt, (err, hash) => {
+                  if (err) throw err;
+                  Reseller.findOneAndUpdate({
+                    _id: user._id,
+                  }, {
+                    password: hash,
+                  }, {
+                    runValidators: true,
+                  }).then(() => {
+                    res.status(200).send({
+                      ok: true,
+                    });
+                  }).catch((err) => {
+                    console.error(err);
+                  });
+                });
+              });
+            }
+          });
+        }).catch((err) => {
+          console.error(err);
+        });
+      });
+    } else {
+      console.log({ error: 'Passwords does not match.' });
+      res.json({ error: 'Passwords does not match.' });
+    }
+  } catch (err) {
+    console.error(err);
+  }
 });
 
 module.exports = router;

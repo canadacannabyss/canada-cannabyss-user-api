@@ -342,11 +342,10 @@ router.post('/decode/token', authenticateToken, (req, res) => {
 router.post('/reset-password/sent', async (req, res) => {
   const { email } = req.body;
 
-  console.log('email:', email);
+  console.log('body:', req.body);
 
   Admin.findOne({
     email,
-    isAdmin: true,
   }).then((user) => {
     if (user) {
       emailSendAdminResetPassword(user.email, user._id);
