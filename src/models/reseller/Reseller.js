@@ -72,6 +72,17 @@ const ResellerSchema = new mongoose.Schema({
     required: false,
     default: null,
   },
+  deletion: {
+    isDeleted: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    when: {
+      type: Date,
+      required: false,
+    },
+  },
   createdOn: {
     type: Date,
     default: Date.now,
