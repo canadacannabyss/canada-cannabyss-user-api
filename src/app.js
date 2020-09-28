@@ -68,8 +68,8 @@ app.use('/resellers/auth', require('./routes/reseller/auth'));
 app.use('/admin/auth', require('./routes/admin/auth'));
 app.use('/admin/resellers', require('./routes/admin/resellers/resellers'));
 app.use('/referral', require('./routes/referral/referral'));
-
 app.use('/customers/auth', require('./routes/customers/auth'));
+app.use('/resellers', require('./routes/reseller/index'));
 
 connectDB();
 
