@@ -65,8 +65,10 @@ app.use(
 app.use('/auth', require('./routes/auth/auth'));
 app.use('/users', require('./routes/users'));
 app.use('/resellers/auth', require('./routes/reseller/auth'));
+app.use('/reseller/customers', require('./routes/reseller/customers/customers'));
 app.use('/admin/auth', require('./routes/admin/auth'));
 app.use('/admin/resellers', require('./routes/admin/resellers/resellers'));
+app.use('/admin/customers', require('./routes/admin/customers/customers'));
 app.use('/referral', require('./routes/referral/referral'));
 app.use('/customers/auth', require('./routes/customers/auth'));
 app.use('/resellers', require('./routes/reseller/index'));
