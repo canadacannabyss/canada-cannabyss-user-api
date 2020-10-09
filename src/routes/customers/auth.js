@@ -41,7 +41,7 @@ const subscribeToMailChimp = async (email, names) => {
         Authorization: `auth ${process.env.MAILCHIMP_API_KEY}`,
       },
       body: JSON.stringify(mcData),
-    }
+    },
   );
   const data = await res.json();
   console.log('subscribeToMailChimp:', data);
@@ -50,7 +50,7 @@ const subscribeToMailChimp = async (email, names) => {
 
 router.get(
   '/facebook',
-  passport.authenticate('facebook', { scope: ['email'] })
+  passport.authenticate('facebook', { scope: ['email'] }),
 );
 
 router.get(
@@ -58,14 +58,14 @@ router.get(
   passport.authenticate('facebook'),
   (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/`);
-  }
+  },
 );
 
 router.get(
   '/google',
   passport.authenticate('google', {
     scope: ['profile', 'email'],
-  })
+  }),
 );
 
 router.get('/google/callback', passport.authenticate('google'), (req, res) => {
@@ -96,18 +96,18 @@ router.post('/register', async (req, res) => {
   console.log('req.body:', req.body);
 
   if (
-    !firstName ||
-    firstName.length === 0 ||
-    !lastName ||
-    lastName.length === 0 ||
-    !username ||
-    username.length === 0 ||
-    !email ||
-    email.length === 0 ||
-    !password ||
-    password.length === 0 ||
-    !password2 ||
-    password2.length === 0
+    !firstName
+    || firstName.length === 0
+    || !lastName
+    || lastName.length === 0
+    || !username
+    || username.length === 0
+    || !email
+    || email.length === 0
+    || !password
+    || password.length === 0
+    || !password2
+    || password2.length === 0
   ) {
     errors.push({ msg: 'Please enter all fields' });
   }
@@ -189,7 +189,7 @@ router.post('/register', async (req, res) => {
                         },
                         {
                           runValidators: true,
-                        }
+                        },
                       ).then((updatedUser) => {
                         emailSend(user.email, user._id);
                         res.status(200).send({ ok: true });
@@ -225,18 +225,18 @@ router.post('/register/referral', async (req, res) => {
   console.log('req.body:', req.body);
 
   if (
-    !firstName ||
-    firstName.length === 0 ||
-    !lastName ||
-    lastName.length === 0 ||
-    !username ||
-    username.length === 0 ||
-    !email ||
-    email.length === 0 ||
-    !password ||
-    password.length === 0 ||
-    !password2 ||
-    password2.length === 0
+    !firstName
+    || firstName.length === 0
+    || !lastName
+    || lastName.length === 0
+    || !username
+    || username.length === 0
+    || !email
+    || email.length === 0
+    || !password
+    || password.length === 0
+    || !password2
+    || password2.length === 0
   ) {
     errors.push({ msg: 'Please enter all fields' });
   }
@@ -319,7 +319,7 @@ router.post('/register/referral', async (req, res) => {
                         },
                         {
                           runValidators: true,
-                        }
+                        },
                       ).then(() => {
                         CustomerReferral.findOne({
                           _id: referralId,
@@ -338,7 +338,7 @@ router.post('/register/referral', async (req, res) => {
                               },
                               {
                                 runValidators: true,
-                              }
+                              },
                             )
                               .then(() => {
                                 emailSend(user.email, user._id);
@@ -427,7 +427,7 @@ router.post('/login', async (req, res) => {
           const accessToken = generateAccessToken(userObj);
           const refreshToken = jwt.sign(
             userObj,
-            process.env.REFRESH_TOKEN_SECRET
+            process.env.REFRESH_TOKEN_SECRET,
           );
           console.log('accessToken:', accessToken);
           console.log('refreshToken:', refreshToken);
@@ -466,7 +466,7 @@ router.post('/decode/token', authenticateToken, (req, res) => {
         });
       if (!userInfoObj) return res.sendStatus(404);
       return res.status(200).send(userInfoObj);
-    }
+    },
   );
 });
 
@@ -485,15 +485,14 @@ router.get('/confirmation/:token', async (req, res) => {
         },
         {
           runValidators: true,
-        }
+        },
       )
         .then((user) => {
-          console.log('user:', user);
           if (user) {
             CustomerReferral.findOne({
               referredUsers: user._id,
             })
-              .then((referral) => {
+              .then(async (referral) => {
                 console.log('referral:', referral);
                 if (referral) {
                   Customer.findOne({
@@ -509,20 +508,16 @@ router.get('/confirmation/:token', async (req, res) => {
                         },
                         {
                           runValidators: true,
-                        }
+                        },
                       )
                         .then(async () => {
                           const names = {
                             firstName: user.names.firstName,
                             lastName: user.names.lastName,
                           };
-                          const mcRes = await subscribeToMailChimp(
+                          const mcRes = await subscribe(
                             user.email,
-                            names
-                          );
-                          console.log(
-                            'Mailchimp response from contact add:',
-                            mcRes
+                            names,
                           );
                           res.status(200).send(user);
                         })
@@ -534,6 +529,14 @@ router.get('/confirmation/:token', async (req, res) => {
                       console.error(err);
                     });
                 } else {
+                  const names = {
+                    firstName: user.names.firstName,
+                    lastName: user.names.lastName,
+                  };
+                  const mcRes = await subscribe(
+                    user.email,
+                    names,
+                  );
                   res.status(200).send(user);
                 }
               })
@@ -604,7 +607,7 @@ router.get('/reset-password/validating/token/:token', async (req, res) => {
             console.error(err);
             res.sendStatus(400);
           });
-      }
+      },
     );
   } catch (err) {
     console.error(err);
@@ -622,8 +625,7 @@ router.post('/reset-password', async (req, res) => {
         token,
         process.env.RESET_PASSWORD_SECRET,
         (err, decodedToken) => {
-          if (err)
-            return res.status(404).send({ error: 'This link is expired' });
+          if (err) return res.status(404).send({ error: 'This link is expired' });
 
           Customer.findOne({
             _id: decodedToken.userId,
@@ -649,7 +651,7 @@ router.post('/reset-password', async (req, res) => {
                         },
                         {
                           runValidators: true,
-                        }
+                        },
                       )
                         .then(() => {
                           res.status(200).send({
@@ -667,7 +669,7 @@ router.post('/reset-password', async (req, res) => {
             .catch((err) => {
               console.error(err);
             });
-        }
+        },
       );
     } else {
       console.log({ error: 'Passwords does not match.' });

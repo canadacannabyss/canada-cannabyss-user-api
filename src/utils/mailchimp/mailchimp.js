@@ -24,7 +24,7 @@ module.exports = {
           Authorization: `auth ${process.env.MAILCHIMP_API_KEY}`,
         },
         body: JSON.stringify(mcData),
-      }
+      },
     );
     const data = await res.json();
     return data;
