@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const emailConfirmationTemplate = require('../templates/emailTrackingNumber');
+const emailConfirmationTemplate = require('../templates/emailFinishedOrder');
 
 module.exports = async (order) => {
   let transporterConfig;
@@ -29,7 +29,7 @@ module.exports = async (order) => {
   const info = await transporter.sendMail({
     from: `"Canada Cannabyss" <${process.env.EMAIL_SMTP_USERNAME}>`, // sender address
     to: `${order.customer.email}`, // list of receivers
-    subject: `Order: ${order._id} Tracking Number - Canada Cannabyss`, // Subject line
+    subject: 'You order was successfully placed - Canada Cannabyss', // Subject line
     html: emailConfirmationTemplate(order),
   });
   console.log('Message sent: %s', info.messageId);

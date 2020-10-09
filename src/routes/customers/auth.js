@@ -6,9 +6,11 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const uuid = require('uuid');
+
 const { authenticateToken } = require('../../middleware/jwt');
 const { generateAccessToken, decodeToken } = require('../../utils/jwt');
 const { slugifyUsername } = require('../../utils/user');
+const { subscribe } = require('../../utils/mailchimp/mailchimp');
 const emailSend = require('../../services/emailSender');
 const emailSendResetPassword = require('../../services/emailSenderResetPassword');
 
@@ -19,9 +21,36 @@ const CustomerReferral = require('../../models/customer/CustomerReferral');
 
 const router = express.Router();
 
+const subscribeToMailChimp = async (email, names) => {
+  const mcData = {
+    email_address: email,
+    merge_fields: {
+      FNAME: names.firstName,
+      LNAME: names.lastName,
+    },
+    status_if_new: 'subscribed',
+    status: 'subscribed',
+  };
+
+  const res = await fetch(
+    `https://${process.env.MAILCHIMP_INSTANCE}.api.mailchimp.com/3.0/lists/${process.env.MAILCHIMP_LIST_ID}/members`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `auth ${process.env.MAILCHIMP_API_KEY}`,
+      },
+      body: JSON.stringify(mcData),
+    }
+  );
+  const data = await res.json();
+  console.log('subscribeToMailChimp:', data);
+  return data;
+};
+
 router.get(
   '/facebook',
-  passport.authenticate('facebook', { scope: ['email'] }),
+  passport.authenticate('facebook', { scope: ['email'] })
 );
 
 router.get(
@@ -29,14 +58,14 @@ router.get(
   passport.authenticate('facebook'),
   (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/`);
-  },
+  }
 );
 
 router.get(
   '/google',
   passport.authenticate('google', {
     scope: ['profile', 'email'],
-  }),
+  })
 );
 
 router.get('/google/callback', passport.authenticate('google'), (req, res) => {
@@ -67,18 +96,18 @@ router.post('/register', async (req, res) => {
   console.log('req.body:', req.body);
 
   if (
-    !firstName
-    || firstName.length === 0
-    || !lastName
-    || lastName.length === 0
-    || !username
-    || username.length === 0
-    || !email
-    || email.length === 0
-    || !password
-    || password.length === 0
-    || !password2
-    || password2.length === 0
+    !firstName ||
+    firstName.length === 0 ||
+    !lastName ||
+    lastName.length === 0 ||
+    !username ||
+    username.length === 0 ||
+    !email ||
+    email.length === 0 ||
+    !password ||
+    password.length === 0 ||
+    !password2 ||
+    password2.length === 0
   ) {
     errors.push({ msg: 'Please enter all fields' });
   }
@@ -151,13 +180,17 @@ router.post('/register', async (req, res) => {
                       createdOn: Date.now(),
                     });
                     newCustomerReferral.save().then((referral) => {
-                      Customer.findOneAndUpdate({
-                        _id: user._id,
-                      }, {
-                        referral: referral._id,
-                      }, {
-                        runValidators: true,
-                      }).then((updatedUser) => {
+                      Customer.findOneAndUpdate(
+                        {
+                          _id: user._id,
+                        },
+                        {
+                          referral: referral._id,
+                        },
+                        {
+                          runValidators: true,
+                        }
+                      ).then((updatedUser) => {
                         emailSend(user.email, user._id);
                         res.status(200).send({ ok: true });
                       });
@@ -192,18 +225,18 @@ router.post('/register/referral', async (req, res) => {
   console.log('req.body:', req.body);
 
   if (
-    !firstName
-    || firstName.length === 0
-    || !lastName
-    || lastName.length === 0
-    || !username
-    || username.length === 0
-    || !email
-    || email.length === 0
-    || !password
-    || password.length === 0
-    || !password2
-    || password2.length === 0
+    !firstName ||
+    firstName.length === 0 ||
+    !lastName ||
+    lastName.length === 0 ||
+    !username ||
+    username.length === 0 ||
+    !email ||
+    email.length === 0 ||
+    !password ||
+    password.length === 0 ||
+    !password2 ||
+    password2.length === 0
   ) {
     errors.push({ msg: 'Please enter all fields' });
   }
@@ -277,33 +310,47 @@ router.post('/register/referral', async (req, res) => {
                       createdOn: Date.now(),
                     });
                     newCustomerReferral.save().then((referral) => {
-                      Customer.findOneAndUpdate({
-                        _id: user._id,
-                      }, {
-                        referral: referral._id,
-                      }, {
-                        runValidators: true,
-                      }).then(() => {
+                      Customer.findOneAndUpdate(
+                        {
+                          _id: user._id,
+                        },
+                        {
+                          referral: referral._id,
+                        },
+                        {
+                          runValidators: true,
+                        }
+                      ).then(() => {
                         CustomerReferral.findOne({
                           _id: referralId,
-                        }).then(((referral) => {
-                          const referredUsersObj = [...referral.referredCustomers];
-                          referredUsersObj.push(user._id);
-                          CustomerReferral.findOneAndUpdate({
-                            _id: referral._id,
-                          }, {
-                            referredCustomers: referredUsersObj,
-                          }, {
-                            runValidators: true,
-                          }).then(() => {
-                            emailSend(user.email, user._id);
-                            res.status(200).send({ ok: true });
-                          }).catch((err) => {
-                            console.log(err);
+                        })
+                          .then((referral) => {
+                            const referredUsersObj = [
+                              ...referral.referredCustomers,
+                            ];
+                            referredUsersObj.push(user._id);
+                            CustomerReferral.findOneAndUpdate(
+                              {
+                                _id: referral._id,
+                              },
+                              {
+                                referredCustomers: referredUsersObj,
+                              },
+                              {
+                                runValidators: true,
+                              }
+                            )
+                              .then(() => {
+                                emailSend(user.email, user._id);
+                                res.status(200).send({ ok: true });
+                              })
+                              .catch((err) => {
+                                console.log(err);
+                              });
+                          })
+                          .catch((err) => {
+                            console.error(err);
                           });
-                        })).catch((err) => {
-                          console.error(err);
-                        });
                       });
                     });
                   });
@@ -380,7 +427,7 @@ router.post('/login', async (req, res) => {
           const accessToken = generateAccessToken(userObj);
           const refreshToken = jwt.sign(
             userObj,
-            process.env.REFRESH_TOKEN_SECRET,
+            process.env.REFRESH_TOKEN_SECRET
           );
           console.log('accessToken:', accessToken);
           console.log('refreshToken:', refreshToken);
@@ -401,20 +448,26 @@ router.post('/decode/token', authenticateToken, (req, res) => {
   const authHeader = req.headers.authorization;
   const tokenHeader = authHeader && authHeader.split(' ')[1];
   if (accessToken !== tokenHeader) return res.sendStatus(403);
-  jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET, async (err, user) => {
-    if (err) return res.sendStatus(403);
-    const userInfoObj = await Customer.findOne({
-      _id: user.id,
-    }).populate({
-      path: 'profileImage',
-      model: CustomerProfileImage,
-    }).populate({
-      path: 'referral',
-      model: CustomerReferral,
-    });
-    if (!userInfoObj) return res.sendStatus(404);
-    return res.status(200).send(userInfoObj);
-  });
+  jwt.verify(
+    accessToken,
+    process.env.ACCESS_TOKEN_SECRET,
+    async (err, user) => {
+      if (err) return res.sendStatus(403);
+      const userInfoObj = await Customer.findOne({
+        _id: user.id,
+      })
+        .populate({
+          path: 'profileImage',
+          model: CustomerProfileImage,
+        })
+        .populate({
+          path: 'referral',
+          model: CustomerReferral,
+        });
+      if (!userInfoObj) return res.sendStatus(404);
+      return res.status(200).send(userInfoObj);
+    }
+  );
 });
 
 router.get('/confirmation/:token', async (req, res) => {
@@ -422,51 +475,79 @@ router.get('/confirmation/:token', async (req, res) => {
   try {
     jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
       if (err) return res.status(404).send({ error: 'This link is expired' });
-      Customer.findOneAndUpdate({
-        _id: decodedToken.userId,
-        isVerified: false,
-      }, {
-        isVerified: true,
-      }, {
-        runValidators: true,
-      }).then((user) => {
-        console.log('user:', user);
-        if (user) {
-          CustomerReferral.findOne({
-            referredUsers: user._id,
-          }).then((referral) => {
-            console.log('referral:', referral);
-            if (referral) {
-              Customer.findOne({
-                _id: referral.user,
-              }).then((referralUser) => {
-                Customer.findOneAndUpdate({
-                  _id: referralUser._id,
-                }, {
-                  credits: referralUser.credits + 5,
-                }, {
-                  runValidators: true,
-                }).then(() => {
+      Customer.findOneAndUpdate(
+        {
+          _id: decodedToken.userId,
+          isVerified: false,
+        },
+        {
+          isVerified: true,
+        },
+        {
+          runValidators: true,
+        }
+      )
+        .then((user) => {
+          console.log('user:', user);
+          if (user) {
+            CustomerReferral.findOne({
+              referredUsers: user._id,
+            })
+              .then((referral) => {
+                console.log('referral:', referral);
+                if (referral) {
+                  Customer.findOne({
+                    _id: referral.user,
+                  })
+                    .then((referralUser) => {
+                      Customer.findOneAndUpdate(
+                        {
+                          _id: referralUser._id,
+                        },
+                        {
+                          credits: referralUser.credits + 5,
+                        },
+                        {
+                          runValidators: true,
+                        }
+                      )
+                        .then(async () => {
+                          const names = {
+                            firstName: user.names.firstName,
+                            lastName: user.names.lastName,
+                          };
+                          const mcRes = await subscribeToMailChimp(
+                            user.email,
+                            names
+                          );
+                          console.log(
+                            'Mailchimp response from contact add:',
+                            mcRes
+                          );
+                          res.status(200).send(user);
+                        })
+                        .catch((err) => {
+                          console.error(err);
+                        });
+                    })
+                    .catch((err) => {
+                      console.error(err);
+                    });
+                } else {
                   res.status(200).send(user);
-                }).catch((err) => {
-                  console.error(err);
-                });
-              }).catch((err) => {
+                }
+              })
+              .catch((err) => {
                 console.error(err);
               });
-            } else {
-              res.status(200).send(user);
-            }
-          }).catch((err) => {
-            console.error(err);
-          });
-        } else {
-          res.status(404).send({ notValid: 'This link is not valid' });
-        }
-      }).catch((err) => {
-        console.error(err);
-        res.sendStatus(400);
-      });
+          } else {
+            res.status(404).send({ notValid: 'This link is not valid' });
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          res.sendStatus(400);
+        });
     });
   } catch (err) {
     console.error(err);
@@ -480,96 +561,114 @@ router.post('/reset-password/sent', async (req, res) => {
 
   Customer.findOne({
     email,
-  }).then((user) => {
-    if (user) {
-      emailSendResetPassword(user.email, user._id);
-      res.status(200).send({
-        ok: true,
-      });
-    } else {
+  })
+    .then((user) => {
+      if (user) {
+        emailSendResetPassword(user.email, user._id);
+        res.status(200).send({
+          ok: true,
+        });
+      } else {
+        res.status(404).send({
+          error: 'Account not found.',
+        });
+      }
+    })
+    .catch((err) => {
+      console.error(err);
       res.status(404).send({
-        error: 'Account not found.',
+        error: 'Something went wrong.',
       });
-    }
-  }).catch((err) => {
-    console.error(err);
-    res.status(404).send({
-      error: 'Something went wrong.',
     });
-  });
 });
 
 router.get('/reset-password/validating/token/:token', async (req, res) => {
   const { token } = req.params;
   try {
-    jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
-      if (err) return res.status(404).send({ error: 'This link is expired' });
-      Customer.findOne({
-        _id: decodedToken.userId,
-      }).then((user) => {
-        if (user) {
-          res.status(200).send(user);
-        } else {
-          res.status(404).send({ notValid: 'This link is not valid' });
-        }
-      }).catch((err) => {
-        console.error(err);
-        res.sendStatus(400);
-      });
-    });
+    jwt.verify(
+      token,
+      process.env.RESET_PASSWORD_SECRET,
+      (err, decodedToken) => {
+        if (err) return res.status(404).send({ error: 'This link is expired' });
+        Customer.findOne({
+          _id: decodedToken.userId,
+        })
+          .then((user) => {
+            if (user) {
+              res.status(200).send(user);
+            } else {
+              res.status(404).send({ notValid: 'This link is not valid' });
+            }
+          })
+          .catch((err) => {
+            console.error(err);
+            res.sendStatus(400);
+          });
+      }
+    );
   } catch (err) {
     console.error(err);
   }
 });
 
 router.post('/reset-password', async (req, res) => {
-  const {
-    token,
-    password,
-    password2,
-  } = req.body;
+  const { token, password, password2 } = req.body;
 
-  console.log(password,
-    password2);
+  console.log(password, password2);
 
   try {
     if (password === password2) {
-      jwt.verify(token, process.env.RESET_PASSWORD_SECRET, (err, decodedToken) => {
-        if (err) return res.status(404).send({ error: 'This link is expired' });
+      jwt.verify(
+        token,
+        process.env.RESET_PASSWORD_SECRET,
+        (err, decodedToken) => {
+          if (err)
+            return res.status(404).send({ error: 'This link is expired' });
 
-        Customer.findOne({
-          _id: decodedToken.userId,
-        }).then((user) => {
-          bcrypt.compare(password, user.password, (err, isMatch) => {
-            if (err) throw err;
+          Customer.findOne({
+            _id: decodedToken.userId,
+          })
+            .then((user) => {
+              bcrypt.compare(password, user.password, (err, isMatch) => {
+                if (err) throw err;
 
-            if (isMatch) {
-              console.log({ error: 'Do not use the your current password.' });
-            } else {
-              bcrypt.genSalt(10, (err, salt) => {
-                bcrypt.hash(password, salt, (err, hash) => {
-                  if (err) throw err;
-                  Customer.findOneAndUpdate({
-                    _id: user._id,
-                  }, {
-                    password: hash,
-                  }, {
-                    runValidators: true,
-                  }).then(() => {
-                    res.status(200).send({
-                      ok: true,
-                    });
-                  }).catch((err) => {
-                    console.error(err);
+                if (isMatch) {
+                  console.log({
+                    error: 'Do not use the your current password.',
                   });
-                });
+                } else {
+                  bcrypt.genSalt(10, (err, salt) => {
+                    bcrypt.hash(password, salt, (err, hash) => {
+                      if (err) throw err;
+                      Customer.findOneAndUpdate(
+                        {
+                          _id: user._id,
+                        },
+                        {
+                          password: hash,
+                        },
+                        {
+                          runValidators: true,
+                        }
+                      )
+                        .then(() => {
+                          res.status(200).send({
+                            ok: true,
+                          });
+                        })
+                        .catch((err) => {
+                          console.error(err);
+                        });
+                    });
+                  });
+                }
               });
-            }
-          });
-        }).catch((err) => {
-          console.error(err);
-        });
-      });
+            })
+            .catch((err) => {
+              console.error(err);
+            });
+        }
+      );
     } else {
       console.log({ error: 'Passwords does not match.' });
       res.json({ error: 'Passwords does not match.' });

@@ -71,6 +71,7 @@ app.use('/admin/resellers', require('./routes/admin/resellers/resellers'));
 app.use('/admin/customers', require('./routes/admin/customers/customers'));
 app.use('/referral', require('./routes/referral/referral'));
 app.use('/customers/auth', require('./routes/customers/auth'));
+app.use('/customers', require('./routes/customers/customers'));
 app.use('/resellers', require('./routes/reseller/index'));
 
 connectDB();
