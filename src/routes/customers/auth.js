@@ -585,6 +585,76 @@ router.post('/reset-password/sent', async (req, res) => {
     });
 });
 
+router.post('/validate/current/password', async (req, res) => {
+  const {userId, currentPassword} = req.body;
+
+  const userObj = await Customer.findOne({
+    _id: userId,
+  });
+
+  bcrypt.compare(currentPassword, userObj.password, (err, isMatch) => {
+    if (err) throw err;
+
+    if (isMatch) {
+      res.status(200).send({
+        ok: true,
+      });
+    } else {
+      res.status(200).send({
+        msg: 'Incorrect password',
+      });
+    }
+  });
+});
+
+router.post('/account/reset-password', async (req, res) => {
+  const {userId, password, password2} = req.body;
+
+  if (password === password2) {
+    const userObj = await Customer.findOne({
+      _id: userId,
+    });
+
+    bcrypt.compare(password, userObj.password, (err, isMatch) => {
+      if (err) throw err;
+  
+      if (isMatch) {
+        res.status(200).send({
+          error: 'Do not use the your current password.',
+        });
+      } else {
+
+        bcrypt.genSalt(10, (err, salt) => {
+          bcrypt.hash(password, salt, (err, hash) => {
+            if (err) throw err;
+            Customer.findOneAndUpdate(
+              {
+                _id: userId,
+              }, {
+                password: hash,
+              }, {
+                runValidators: true,
+              },
+            )
+              .then(() => {
+                res.status(200).send({
+                  ok: true,
+                });
+              })
+              .catch((err) => {
+                console.error(err);
+              });
+          });
+        });
+      }
+    });
+  } else {
+    res.status(200).send({
+      error: 'Passwords does not match',
+    });
+  }
+});
+
 router.get('/reset-password/validating/token/:token', async (req, res) => {
   const { token } = req.params;
   try {
