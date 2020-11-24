@@ -18,7 +18,7 @@ module.exports = (order) => `
       <h2 style='color: #18840f; font-size: 16px; margin-bottom: 0.5rem;'>Order ID</h2>
       <span style='color: #1b1b1b; font-size: 18px; margin-bottom: 0.5rem;'>${order._id}</span>
       <h2 style='color: #18840f; font-size: 16px; margin-bottom: 0.5rem;'>Check your order details on</h2>
-      <a href='${process.env.FRONTEND_URL}/account/orders' target='_blank' style='color: #18840f; font-size: 18px; text-decoration: none; line-height: 1.5;'>${process.env.FRONTEND_URL}/account/orders</a>
+      <a href='${process.env.FRONTEND_URL}/account/orders' target='_blank' style='color: #18840f; font-size: 18px; text-decoration: none; line-height: 1.5; word-break: break-all;'>${process.env.FRONTEND_URL}/account/orders</a>
       <br />
       <br />
       <p style='color: #1b1b1b; font-size: 13px;'>With ❤️ Canada Cannabyss Team</p>

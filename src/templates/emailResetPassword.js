@@ -12,7 +12,7 @@ module.exports = (url) => `
       </div>
       <br />
       <p style='color: #1b1b1b; font-size: 16px; margin-bottom: 0.5rem;'>Reset your password by clicking the link below:</p>
-      <a href='${url}' target='_blank' style='color: #18840f; font-size: 16px; text-decoration: none; line-height: 1.5;'>${url}</a>
+      <a href='${url}' target='_blank' style='color: #18840f; font-size: 16px; text-decoration: none; line-height: 1.5; word-break: break-all;'>${url}</a>
       <br />
       <br />
       <p style='color: #1b1b1b; font-size: 13px;'>With ❤️ Canada Cannabyss Team</p>

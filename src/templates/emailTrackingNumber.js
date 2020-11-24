@@ -27,7 +27,7 @@ module.exports = (order) => `
       <h2 style='color: #18840f; font-size: 16px; margin-bottom: 0.5rem;'>Postal Service</h2>
       <span style='color: #1b1b1b; font-size: 18px; margin-bottom: 0.5rem;'>${order.tracking.postalService.name}</span>
       <h2 style='color: #18840f; font-size: 16px; margin-bottom: 0.5rem;'>Postal Service Tracking Website</h2>
-      <a href='${order.tracking.postalService.trackingWebsite}' target='_blank' style='color: #18840f; font-size: 18px; text-decoration: none; line-height: 1.5;'>${order.tracking.postalService.trackingWebsite}</a>
+      <a href='${order.tracking.postalService.trackingWebsite}' target='_blank' style='color: #18840f; font-size: 18px; text-decoration: none; line-height: 1.5; word-break: break-all;'>${order.tracking.postalService.trackingWebsite}</a>
       <br />
       <br />
       <p style='color: #1b1b1b; font-size: 13px;'>With ❤️ Canada Cannabyss Team</p>
