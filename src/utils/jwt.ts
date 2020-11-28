@@ -1,9 +1,13 @@
 import jwt from 'jsonwebtoken'
 
-export function generateAccessToken(user: { _id: string }): void {
-  jwt.sign({ id: user._id }, process.env.ACCESS_TOKEN_SECRET, {
+export function generateAccessToken(userId: string): any {
+  return jwt.sign({ id: userId }, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: 86400,
   })
+}
+
+export function generateRefreshToken(userId: string) {
+  return jwt.sign({ id: userId }, process.env.REFRESH_TOKEN_SECRET)
 }
 
 export function decodeToken(token: string): any {

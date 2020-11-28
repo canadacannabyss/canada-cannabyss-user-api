@@ -1,12 +1,22 @@
 import { Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import uuid from 'uuid'
+import { v4 } from 'uuid'
 
 import { authenticateToken } from '../../middleware/jwt'
-import { generateAccessToken, decodeToken } from '../../utils/jwt'
+import { generateAccessToken, generateRefreshToken } from '../../utils/jwt'
+import {
+  generateRandomUsername,
+  generateUniqueId,
+} from '../../utils/generators/random/random'
 import { slugifyUsername } from '../../utils/user'
-import { error, success } from '../../utils/logger/logger'
+import {
+  validateCustomerObj,
+  validateImageId,
+  validateUsername,
+} from '../../utils/validators/registration/customer/registration'
+import { validateLoginCustomer } from '../../utils/validators/registration/customer/login'
+import { error, success, warning } from '../../utils/logger/logger'
 import { subscribe } from '../../utils/mailchimp/mailchimp'
 import emailSend from '../../services/emailSender'
 import emailSendResetPassword from '../../services/emailSenderResetPassword'
@@ -36,122 +46,155 @@ export async function getAllUsers(req: Request, res: Response): Promise<any> {
 export async function register(req: Request, res: Response): Promise<any> {
   const { firstName, lastName, username, email, password, password2 } = req.body
 
-  const errors = []
-  console.log('req.body:', req.body)
+  const validation = validateCustomerObj(
+    { firstName, lastName },
+    username,
+    email,
+    password,
+    password2,
+  )
 
-  if (
-    !firstName ||
-    firstName.length === 0 ||
-    !lastName ||
-    lastName.length === 0 ||
-    !username ||
-    username.length === 0 ||
-    !email ||
-    email.length === 0 ||
-    !password ||
-    password.length === 0 ||
-    !password2 ||
-    password2.length === 0
-  ) {
-    errors.push({ msg: 'Please enter all fields' })
-  }
-
-  const slugifiedUsername = slugifyUsername(username)
-
-  try {
-    const existingUser = await Customer.findOne({
-      username: slugifiedUsername,
+  if (!validation.valid) {
+    validation.errors.map((error: string) => {
+      warning(error)
     })
-    if (existingUser) {
-      errors.push({ msg: 'Username already exist' })
-    }
-  } catch (err) {
-    console.error(err)
-    errors.push({ msg: 'Error while finding existing user' })
+    return res.status(400).send({
+      status_code: 400,
+      results: {},
+      errors: validation.errors,
+    })
   }
 
-  if (password !== password2) {
-    errors.push({ msg: 'Passwords do not match' })
+  const existingCustomer = await Customer.findOne({
+    email,
+  })
+
+  if (existingCustomer) {
+    warning('This email is already attached to another account.')
+    return res.status(400).send({
+      status_code: 400,
+      results: {},
+      errors: ['This email is already attached to another account.'],
+    })
   }
 
-  if (password.length < 6) {
-    errors.push({ msg: 'Password must be at least 6 characters' })
+  let newUsername = slugifyUsername(username)
+
+  if (!validateUsername(newUsername)) {
+    do {
+      newUsername = generateRandomUsername(username)
+    } while (!validateUsername(newUsername))
   }
 
-  if (errors.length > 0) {
-    res.json(errors)
-  } else {
-    Customer.findOne({ email })
-      .then((user) => {
-        if (user) {
-          errors.push({ msg: 'Email already exists' })
-          res.json(errors)
-        } else {
-          const id = uuid.v4()
+  bcrypt.genSalt(10, (errGenSalt: Error, salt: string) => {
+    if (errGenSalt) throw errGenSalt
 
-          const newUserProfileImage = new CustomerProfileImage({
-            id,
-            name: 'default-user.jpg',
-            size: 11800,
-            key: 'default/users/default-user.jpg',
-            url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
+    bcrypt.hash(password, salt, async (errHash: Error, hash: string) => {
+      if (errHash) throw errHash
+
+      let newId = generateUniqueId(8, 'hex', 36)
+
+      if (!validateImageId(newId)) {
+        do {
+          newId = generateUniqueId(8, 'hex', 36)
+        } while (!validateImageId(newId))
+      }
+
+      const newCustomerProfileImage = new CustomerProfileImage({
+        id: newId,
+        name: 'default-user.jpg',
+        size: 11800,
+        key: 'default/users/default-user.jpg',
+        url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
+      })
+
+      newCustomerProfileImage
+        .save()
+        .then(async (image) => {
+          const newCustomer = new Customer({
+            id: newId,
+            names: {
+              firstName,
+              lastName,
+            },
+            email,
+            username: newUsername,
+            password: hash,
+            profileImage: image._id,
+            origin: 'Local',
           })
 
-          newUserProfileImage
+          newCustomer
             .save()
-            .then((image) => {
-              const newUser = new Customer({
-                id,
-                names: {
-                  firstName,
-                  lastName,
-                },
-                email,
-                username: slugifiedUsername,
-                password,
-                profileImage: image._id,
-                origin: 'Local',
+            .then((userObj) => {
+              const newReferral = new CustomerReferral({
+                customer: userObj._id,
+                referredCustomers: [],
               })
 
-              bcrypt.genSalt(10, (err, salt) => {
-                bcrypt.hash(newUser.password, salt, (err, hash) => {
-                  if (err) throw err
-                  newUser.password = hash
-                  newUser.save().then((user) => {
-                    const newCustomerReferral = new CustomerReferral({
-                      customer: user._id,
-                      referredCustomers: [],
-                      createdAt: Date.now(),
-                    })
-                    newCustomerReferral.save().then((referral) => {
-                      Customer.findOneAndUpdate(
-                        {
-                          _id: user._id,
+              newReferral
+                .save()
+                .then((referralObj) => {
+                  Customer.findOneAndUpdate(
+                    {
+                      _id: userObj._id,
+                    },
+                    {
+                      referral: referralObj._id,
+                    },
+                    {
+                      runValidators: true,
+                    },
+                  )
+                    .then(() => {
+                      emailSend(userObj.email, userObj._id)
+                      success('Customer created.')
+                      success('Customer registration email sent.')
+                      return res.status(200).send({
+                        status_code: 200,
+                        results: {
+                          ok: true,
                         },
-                        {
-                          referral: referral._id,
-                        },
-                        {
-                          runValidators: true,
-                        },
-                      ).then((updatedUser) => {
-                        emailSend(user.email, user._id)
-                        res.status(200).send({ ok: true })
+                        errors: [],
                       })
                     })
+                    .catch((err: Error) => {
+                      error(err.message)
+                      return res.status(500).send({
+                        status_code: 500,
+                        results: [],
+                        errors: [err.message],
+                      })
+                    })
+                })
+                .catch((err: Error) => {
+                  error(err.message)
+                  return res.status(500).send({
+                    status_code: 500,
+                    results: [],
+                    errors: [err.message],
                   })
                 })
+            })
+            .catch((err: Error) => {
+              error(err.message)
+              return res.status(500).send({
+                status_code: 500,
+                results: [],
+                errors: [err.message],
               })
             })
-            .catch((err) => {
-              console.error(err)
-            })
-        }
-      })
-      .catch((err) => {
-        console.error(err)
-      })
-  }
+        })
+        .catch((err: Error) => {
+          error(err.message)
+          return res.status(500).send({
+            status_code: 500,
+            results: [],
+            errors: [err.message],
+          })
+        })
+    })
+  })
 }
 
 export async function registerReferral(
@@ -169,7 +212,6 @@ export async function registerReferral(
   } = req.body
 
   const errors = []
-  console.log('req.body:', req.body)
 
   if (
     !firstName ||
@@ -219,7 +261,7 @@ export async function registerReferral(
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newUserProfileImage = new CustomerProfileImage({
             id,
@@ -336,69 +378,79 @@ export function token(req: Request, res: Response): Promise<any> {
 export async function login(req: Request, res: Response): Promise<any> {
   const { email, password } = req.body
 
+  const validation = validateLoginCustomer(email, password)
+
+  if (!validation.valid) {
+    validation.errors.map((error: string) => {
+      warning(error)
+    })
+    return res.status(400).send({
+      status_code: 400,
+      results: {},
+      errors: validation.errors,
+    })
+  }
+
   try {
-    const errors = []
-
-    if (!email || email.length === 0 || !password || password.length === 0) {
-      errors.push({ msg: 'Please enter all fields' })
-    }
-
-    const user = await Customer.findOne({
+    const userObjVerified = await Customer.findOne({
       email,
       isVerified: true,
     })
 
-    if (!user) {
-      errors.push({ msg: 'Customer does not exist' })
+    if (!userObjVerified) {
+      warning('User does not exists.')
+      return res.status(400).send({
+        status_code: 400,
+        results: {},
+        errors: ['User does not exists.'],
+      })
     }
 
-    if (errors.length > 0) {
-      res.json(errors)
-    } else {
-      bcrypt.compare(password, user.password, (err, isMatch) => {
+    bcrypt.compare(
+      password,
+      userObjVerified.password,
+      (err: Error, isMatch: boolean) => {
         if (err) throw err
 
         if (isMatch) {
-          const userObj = {
-            _id: user._id,
-            names: {
-              firstName: user.names.firstName,
-              lastName: user.names.lastName,
-            },
-            email: user.email,
-            password: user.password,
-            origin: user.origin,
-            createdAt: user.createdAt,
-            __v: user.__v,
-          }
-          const accessToken = generateAccessToken(userObj)
-          const refreshToken = jwt.sign(
-            userObj,
-            process.env.REFRESH_TOKEN_SECRET,
-          )
-          console.log('accessToken:', accessToken)
-          console.log('refreshToken:', refreshToken)
+          const accessToken: string = generateAccessToken(userObjVerified._id)
+          const refreshToken: string = generateRefreshToken(userObjVerified._id)
+
           res.status(200).send({ accessToken, refreshToken })
         } else {
-          errors.push({ msg: 'Incorrect password' })
-          res.json(errors)
+          warning('Invalid password.')
+          return res.status(400).send({
+            status_code: 400,
+            results: {},
+            errors: ['Invalid password.'],
+          })
         }
-      })
-    }
+      },
+    )
   } catch (err) {
-    console.error(err)
+    error(err.message)
+    return res.status(500).send({
+      status_code: 500,
+      results: {},
+      errors: [err.message],
+    })
   }
 }
 
-export async function decodeToken(req: Request, res: Response): Promise<any> {
+export async function decodeToken(
+  req: Request,
+  res: Response,
+): Promise<Response> {
   const { accessToken } = req.body
-  const authHeader = req.headers.authorization
-  const tokenHeader = authHeader && authHeader.split(' ')[1]
+  const authHeader: string = req.headers.authorization
+  const tokenHeader: string = authHeader && authHeader.split(' ')[1]
+
   if (accessToken !== tokenHeader) return res.sendStatus(403)
+
   jwt.verify(
     accessToken,
     process.env.ACCESS_TOKEN_SECRET,
-    async (err, user) => {
+    async (err: Error, user: { id: string }) => {
       if (err) return res.sendStatus(403)
       const userInfoObj = await Customer.findOne({
         _id: user.id,
@@ -422,6 +474,7 @@ export async function confirmationToken(
   res: Response,
 ): Promise<any> {
   const { token } = req.params
+
   try {
     jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
       if (err) return res.status(404).send({ error: 'This link is expired' })
@@ -709,11 +762,11 @@ export async function resetPassword(req: Request, res: Response): Promise<any> {
 }
 
 export async function logout(req: Request, res: Response): Promise<any> {
-    const { refreshToken } = req.body
+  const { refreshToken } = req.body
 
-    await CustomerRefreshToken.findOneAndDelete({
-      refreshToken,
-    })
+  await CustomerRefreshToken.findOneAndDelete({
+    refreshToken,
+  })
 
-    res.sendStatus(204)
+  res.sendStatus(204)
 }

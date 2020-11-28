@@ -37,7 +37,7 @@ const storageTypes = {
       })
     },
     s3: new aws.S3(),
-    Bucket: process.env.BUCKET_NAME,
+    Bucket: 'canada-cannabyss',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     ACL: 'public-read',
     resize: {

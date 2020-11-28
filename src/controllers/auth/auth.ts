@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import uuid from 'uuid'
 
-import { generateAccessToken, decodeToken } from '../../utils/jwt'
+import { generateAccessToken } from '../../utils/jwt'
 import { slugifyUsername } from '../../utils/user'
 import { error, success } from '../../utils/logger/logger'
 

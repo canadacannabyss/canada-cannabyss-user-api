@@ -1,4 +1,3 @@
-import { Request } from 'aws-sdk'
 import { Request, Response } from 'express'
 import emailSendTrackingNumber from '../../../services/emailSenderTrackingNumber'
 
