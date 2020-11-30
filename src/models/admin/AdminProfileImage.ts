@@ -41,7 +41,7 @@ AdminProfileImageSchema.pre('save', function () {
   }
 })
 
-AdminProfileImageSchema.pre('remove', function () {
+AdminProfileImageSchema.pre('remove', async () => {
   if (process.env.STORAGE_TYPE === 's3') {
     return s3
       .deleteObject({

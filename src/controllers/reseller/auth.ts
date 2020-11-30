@@ -1,5 +1,5 @@
 import { Request, Response } from 'express'
-import uuid from 'uuid'
+import { v4 } from 'uuid'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 
@@ -161,7 +161,7 @@ export async function register(req: Request, res: Response): Promise<any> {
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newResellerProfileImage = new ResellerProfileImage({
             id,
@@ -298,7 +298,7 @@ export async function referralRegister(
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newResellerProfileImage = new ResellerProfileImage({
             id,
@@ -450,7 +450,7 @@ export async function mainRegister(req: Request, res: Response): Promise<any> {
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newResellerProfileImage = new ResellerProfileImage({
             id,
@@ -718,68 +718,68 @@ export async function resetPasswordValidatingToken(
 }
 
 export async function resetPassword(req: Request, res: Response): Promise<any> {
-    const { token, password, password2 } = req.body
+  const { token, password, password2 } = req.body
 
-    console.log(password, password2)
+  console.log(password, password2)
 
-    try {
-      if (password === password2) {
-        jwt.verify(
-          token,
-          process.env.RESET_PASSWORD_SECRET,
-          (err, decodedToken) => {
-            if (err)
-              return res.status(404).send({ error: 'This link is expired' })
+  try {
+    if (password === password2) {
+      jwt.verify(
+        token,
+        process.env.RESET_PASSWORD_SECRET,
+        (err, decodedToken) => {
+          if (err)
+            return res.status(404).send({ error: 'This link is expired' })
 
-            Reseller.findOne({
-              _id: decodedToken.userId,
+          Reseller.findOne({
+            _id: decodedToken.userId,
+          })
+            .then((user) => {
+              bcrypt.compare(password, user.password, (err, isMatch) => {
+                if (err) throw err
+
+                if (isMatch) {
+                  console.log({
+                    error: 'Do not use the your current password.',
+                  })
+                } else {
+                  bcrypt.genSalt(10, (err, salt) => {
+                    bcrypt.hash(password, salt, (err, hash) => {
+                      if (err) throw err
+                      Reseller.findOneAndUpdate(
+                        {
+                          _id: user._id,
+                        },
+                        {
+                          password: hash,
+                        },
+                        {
+                          runValidators: true,
+                        },
+                      )
+                        .then(() => {
+                          res.status(200).send({
+                            ok: true,
+                          })
+                        })
+                        .catch((err) => {
+                          console.error(err)
+                        })
+                    })
+                  })
+                }
+              })
             })
-              .then((user) => {
-                bcrypt.compare(password, user.password, (err, isMatch) => {
-                  if (err) throw err
-
-                  if (isMatch) {
-                    console.log({
-                      error: 'Do not use the your current password.',
-                    })
-                  } else {
-                    bcrypt.genSalt(10, (err, salt) => {
-                      bcrypt.hash(password, salt, (err, hash) => {
-                        if (err) throw err
-                        Reseller.findOneAndUpdate(
-                          {
-                            _id: user._id,
-                          },
-                          {
-                            password: hash,
-                          },
-                          {
-                            runValidators: true,
-                          },
-                        )
-                          .then(() => {
-                            res.status(200).send({
-                              ok: true,
-                            })
-                          })
-                          .catch((err) => {
-                            console.error(err)
-                          })
-                      })
-                    })
-                  }
-                })
-              })
-              .catch((err) => {
-                console.error(err)
-              })
-          },
-        )
-      } else {
-        console.log({ error: 'Passwords does not match.' })
-        res.json({ error: 'Passwords does not match.' })
-      }
-    } catch (err) {
-      console.error(err)
+            .catch((err) => {
+              console.error(err)
+            })
+        },
+      )
+    } else {
+      console.log({ error: 'Passwords does not match.' })
+      res.json({ error: 'Passwords does not match.' })
     }
+  } catch (err) {
+    console.error(err)
+  }
 }

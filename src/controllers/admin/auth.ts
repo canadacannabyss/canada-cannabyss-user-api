@@ -556,6 +556,8 @@ export async function setGlobalVariable(
   req.session.folder_name = title
   req.session.destination = `${type}/${title}`
 
+  console.log('req.session:', req.session)
+
   res.status(200).send({
     ok: true,
   })

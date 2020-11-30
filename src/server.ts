@@ -2,7 +2,7 @@ import express from 'express'
 import path from 'path'
 
 import { success } from './utils/logger/logger'
-import middlewareConfig from './config/middleware/middleware'
+import middlewareConfig from './config/middlewares/middlewares'
 import { connectDB } from './config/db'
 
 import routes from './routes/index'
