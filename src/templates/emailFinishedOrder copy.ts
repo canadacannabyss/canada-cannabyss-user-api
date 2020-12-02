@@ -13,7 +13,7 @@ export default (order: { _id: string }) => `
       <br />
       <br />
       <p style='color: #1b1b1b; font-size: 16px; margin-bottom: 0.5rem;'>Order was successfully placed and the payment is yet to be verified.</p>
-      <p style='color: #1b1b1b; font-size: 16px; margin-bottom: 0.5rem;'>Once the payment proccessed and verified your package will be deliveried to you within 2 or 3 business days through Canada Express Post.</p>
+      <p style='color: #1b1b1b; font-size: 16px; margin-bottom: 0.5rem;'>Once the payment proccessed and verified your package will be deliveried to you along the required information to tracking it.</p>
       
       <h2 style='color: #18840f; font-size: 16px; margin-bottom: 0.5rem;'>Order ID</h2>
       <span style='color: #1b1b1b; font-size: 18px; margin-bottom: 0.5rem;'>${order._id}</span>

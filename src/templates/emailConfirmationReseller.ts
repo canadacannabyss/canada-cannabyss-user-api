@@ -15,7 +15,7 @@ export default (url: string) => `
       <a href='${url}' target='_blank' style='color: #18840f; font-size: 16px; text-decoration: none; line-height: 1.5; word-break: break-all;'>${url}</a>
       <p style='color: #1b1b1b; font-size: 16px;'>Enjoy!</p>
       <br />
-      <p style='color: #1b1b1b; font-size: 13px;'>With ❤️ Canada Cannabyss Team</p>
+      <p style='color: #1b1b1b; font-size: 13px;'>With 💚 Canada Cannabyss Team</p>
     </div>
   </div>
 `
