@@ -1,7 +1,7 @@
 import { Request, RequestHandler, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import uuid from 'uuid'
+import { v4 } from 'uuid'
 
 import { generateAccessToken } from '../../utils/jwt'
 import { slugifyUsername } from '../../utils/user'
@@ -86,7 +86,7 @@ export async function register(req: Request, res: Response): Promise<any> {
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newUserProfileImage = new UserProfileImage({
             id,
@@ -219,7 +219,7 @@ export async function registerReferral(
           errors.push({ msg: 'Email already exists' })
           res.json(errors)
         } else {
-          const id = uuid.v4()
+          const id = v4()
 
           const newUserProfileImage = new UserProfileImage({
             id,
