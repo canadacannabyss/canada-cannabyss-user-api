@@ -3,7 +3,7 @@ import { success } from '../../utils/logger/logger'
 
 export const connectDB = async (): Promise<void> => {
   try {
-    let dbURI = process.env.ATLAS_URI_STAGING
+    let dbURI = process.env.ATLAS_URI
 
     console.log('process.env.NODE_ENV:', process.env.NODE_ENV)
 
