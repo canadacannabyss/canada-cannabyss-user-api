@@ -15,6 +15,16 @@ export default async (email: string, createdBy: Date) => {
         pass: process.env.EMAIL_SMTP_PASSWORD,
       },
     }
+  } else if (process.env.NODE_ENV === 'staging') {
+    transporterConfig = {
+      host: 'server148.web-hosting.com',
+      port: 465,
+      secure: true, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_SMTP_USERNAME,
+        pass: process.env.EMAIL_SMTP_PASSWORD,
+      },
+    }
   } else if (process.env.NODE_ENV === 'development') {
     transporterConfig = {
       host: 'smtp.ethereal.email',
