@@ -3,7 +3,6 @@ import { success } from '../../utils/logger/logger'
 
 export const connectDB = async (): Promise<void> => {
   try {
-<<<<<<< HEAD
     let dbURI = process.env.ATLAS_URI
 
     console.log('process.env.NODE_ENV:', process.env.NODE_ENV)
@@ -11,9 +10,6 @@ export const connectDB = async (): Promise<void> => {
     if (process.env.NODE_ENV === 'production') {
       dbURI = process.env.ATLAS_URI
     }
-=======
-    const dbURI = process.env.ATLAS_URI
->>>>>>> staging
 
     const conn = await mongoose.connect(dbURI, {
       useNewUrlParser: true,
