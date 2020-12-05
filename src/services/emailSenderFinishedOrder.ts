@@ -4,6 +4,7 @@ import { IOrder, ITransporterConfig } from '../interfaces/services/emailSender'
 
 export default async (order: IOrder) => {
   let transporterConfig: ITransporterConfig
+  console.log('NODE_ENV:', process.env.NODE_ENV)
   if (process.env.NODE_ENV === 'production') {
     transporterConfig = {
       host: 'server148.web-hosting.com',
