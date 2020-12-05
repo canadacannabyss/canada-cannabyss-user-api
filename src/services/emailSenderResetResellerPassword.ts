@@ -4,9 +4,18 @@ import emailResetPasswordTemplate from '../templates/emailResellerResetPassword'
 import { ITransporterConfig } from '../interfaces/services/emailSender'
 
 export default async (emailTo, userId) => {
-  console.log('process.env.NODE_ENV:', process.env.NODE_ENV)
   let transporterConfig: ITransporterConfig
   if (process.env.NODE_ENV === 'production') {
+    transporterConfig = {
+      host: 'server148.web-hosting.com',
+      port: 465,
+      secure: true, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_SMTP_USERNAME,
+        pass: process.env.EMAIL_SMTP_PASSWORD,
+      },
+    }
+  } else if (process.env.NODE_ENV === 'staging') {
     transporterConfig = {
       host: 'server148.web-hosting.com',
       port: 465,
