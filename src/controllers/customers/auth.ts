@@ -493,21 +493,22 @@ export async function confirmationToken(
         .then((user) => {
           if (user) {
             CustomerReferral.findOne({
-              referredUsers: user._id,
+              referredCustomers: { $in: [user._id] },
             })
               .then(async (referral) => {
                 console.log('referral:', referral)
                 if (referral) {
                   Customer.findOne({
-                    _id: referral.user,
+                    _id: referral.customer,
                   })
-                    .then((referralUser) => {
+                    .then((referralCustomer) => {
+                      console.log('CUSTOMER REFERRAL:', referralCustomer)
                       Customer.findOneAndUpdate(
                         {
-                          _id: referralUser._id,
+                          _id: referralCustomer._id,
                         },
                         {
-                          credits: referralUser.credits + 5,
+                          credits: referralCustomer.credits + 5,
                         },
                         {
                           runValidators: true,

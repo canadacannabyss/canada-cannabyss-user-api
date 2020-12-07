@@ -5,7 +5,7 @@ import {
   getUsername,
   updateById,
   deleteReseller,
-} from '@controllers/reseller/index'
+} from '../../controllers/reseller/index'
 
 const router = Router()
 

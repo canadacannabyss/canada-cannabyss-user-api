@@ -16,7 +16,7 @@ import {
   resetPasswordValidatingToken,
   resetPassword,
   logout,
-} from '@controllers/auth/auth'
+} from '../../controllers/auth/auth'
 
 const router = Router()
 

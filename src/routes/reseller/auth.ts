@@ -14,7 +14,7 @@ import {
   resetPasswordSent,
   resetPasswordValidatingToken,
   resetPassword,
-} from '@controllers/reseller/auth'
+} from '../../controllers/reseller/auth'
 
 const router = Router()
 

@@ -13,6 +13,7 @@ import ResellerReferral from '../../models/reseller/ResellerReferral'
 
 export function customerVerify(req: Request, res: Response): any {
   const { referral } = req.query
+
   let found = true
   CustomerReferral.findOne({
     _id: referral,
@@ -63,7 +64,7 @@ export function resellerVerify(req: Request, res: Response): any {
 
 export function customer(req: Request, res: Response): any {
   const { referral } = req.query
-
+  console.log('referral customer:', referral)
   CustomerReferral.findOne({
     _id: referral,
   })
@@ -82,6 +83,53 @@ export function customer(req: Request, res: Response): any {
     .catch((err) => {
       res.json(false)
     })
+}
+
+export async function customerAddCreditOnBuy(req: Request, res: Response): any {
+  const { customerId } = req.body
+
+  try {
+    const referralObj = await CustomerReferral.findOne({
+      referredCustomers: customerId,
+    }).populate({
+      path: 'customer',
+      model: Customer,
+    })
+
+    if (!referralObj) {
+      return res.status(400).send({
+        statusCode: 400,
+        result: {},
+        errors: ['Referral does not exist.'],
+      })
+    }
+
+    await Customer.findOneAndUpdate(
+      {
+        _id: referralObj.customer._id,
+      },
+      {
+        credits: referralObj.customer.credits + 5,
+      },
+      {
+        runValidators: true,
+      },
+    )
+
+    return res.status(200).send({
+      statusCode: 200,
+      result: {
+        ok: true,
+      },
+      errors: [],
+    })
+  } catch (err: any) {
+    return res.status(500).send({
+      statusCode: 500,
+      result: {},
+      errors: [err.message],
+    })
+  }
 }
 
 export function admin(req: Request, res: Response): any {

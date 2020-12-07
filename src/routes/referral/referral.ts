@@ -10,7 +10,8 @@ import {
   customerGetInvitedFriends,
   adminGetInvitedFriends,
   resellerGetInvitedFriends,
-} from '@controllers/referral/referral'
+  customerAddCreditOnBuy,
+} from '../../controllers/referral/referral'
 
 const router = Router()
 
@@ -20,7 +21,9 @@ router.get('/admin/verify', adminVerify)
 
 router.get('/reseller/verify', resellerVerify)
 
-router.get('/customer', customer)
+router.post('/customer', customer)
+
+router.post('/customer/add/credit/on/buy', customerAddCreditOnBuy)
 
 router.get('/admin', admin)
 

@@ -19,7 +19,7 @@ import {
   resetPasswordValidatingToken,
   resetPassword,
   logout,
-} from '@controllers/customers/auth'
+} from '../../controllers/customers/auth'
 
 const router = Router()
 
