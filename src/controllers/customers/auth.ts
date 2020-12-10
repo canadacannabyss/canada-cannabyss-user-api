@@ -34,6 +34,7 @@ import Customer from '../../models/customer/Customer'
 import CustomerProfileImage from '../../models/customer/CustomerProfileImage'
 import CustomerRefreshToken from '../../models/customer/CustomerRefreshToken'
 import CustomerReferral from '../../models/customer/CustomerReferral'
+import { cursorTo } from 'readline'
 
 export function facebookCallback(req: Request, res: Response): void {
   res.redirect(`${process.env.FRONTEND_URL}/`)
@@ -378,10 +379,22 @@ export async function confirmationToken(
 ): Promise<any> {
   const { token } = req.params
 
+  console.log('token confirmation:', token)
+
   try {
-    jwt.verify(token, process.env.EMAIL_SECRET, (err, decodedToken) => {
-      if (err) return res.status(404).send({ error: 'This link is expired' })
-      Customer.findOneAndUpdate(
+    jwt.verify(token, process.env.EMAIL_SECRET, async (err, decodedToken) => {
+      if (err) {
+        error('This link is expired')
+        return res.status(401).send({
+          statusCode: 401,
+          results: {},
+          errors: ['This link is expired'],
+        })
+      }
+
+      console.log('decodedToken:', decodedToken)
+
+      const updatedCustomer = await Customer.findOneAndUpdate(
         {
           _id: decodedToken.userId,
           isVerified: false,
@@ -393,68 +406,65 @@ export async function confirmationToken(
           runValidators: true,
         },
       )
-        .then((user) => {
-          if (user) {
-            CustomerReferral.findOne({
-              referredCustomers: { $in: [user._id] },
-            })
-              .then(async (referral) => {
-                console.log('referral:', referral)
-                if (referral) {
-                  Customer.findOne({
-                    _id: referral.customer,
-                  })
-                    .then((referralCustomer) => {
-                      console.log('CUSTOMER REFERRAL:', referralCustomer)
-                      Customer.findOneAndUpdate(
-                        {
-                          _id: referralCustomer._id,
-                        },
-                        {
-                          credits: referralCustomer.credits + 5,
-                        },
-                        {
-                          runValidators: true,
-                        },
-                      )
-                        .then(async () => {
-                          const names = {
-                            firstName: user.names.firstName,
-                            lastName: user.names.lastName,
-                          }
-                          const mcRes = await subscribe(user.email, names)
-                          res.status(200).send(user)
-                        })
-                        .catch((err) => {
-                          console.error(err)
-                        })
-                    })
-                    .catch((err) => {
-                      console.error(err)
-                    })
-                } else {
-                  const names = {
-                    firstName: user.names.firstName,
-                    lastName: user.names.lastName,
-                  }
-                  const mcRes = await subscribe(user.email, names)
-                  res.status(200).send(user)
-                }
-              })
-              .catch((err) => {
-                console.error(err)
-              })
-          } else {
-            res.status(404).send({ notValid: 'This link is not valid' })
-          }
+
+      console.log('updatedCustomer:', updatedCustomer)
+
+      if (updatedCustomer) {
+        console.log('updatedCustomer._id:', updatedCustomer._id)
+        const referralObj = await CustomerReferral.findOne({
+          referredCustomers: { $in: [updatedCustomer._id] },
         })
-        .catch((err) => {
-          console.error(err)
-          res.sendStatus(400)
+
+        console.log('referralObj:', referralObj)
+
+        if (referralObj) {
+          const customerReferralObj = await Customer.findOne({
+            _id: referralObj.customer,
+          })
+
+          await Customer.findOneAndUpdate(
+            {
+              _id: customerReferralObj._id,
+            },
+            {
+              credits: customerReferralObj.credits + 5,
+            },
+            {
+              runValidators: true,
+            },
+          )
+        }
+
+        const names = {
+          firstName: updatedCustomer.names.firstName,
+          lastName: updatedCustomer.names.lastName,
+        }
+
+        console.log('names:', names)
+
+        await subscribe(updatedCustomer.email, names)
+
+        return res.status(200).send({
+          statusCode: 200,
+          results: updatedCustomer,
+          errors: [],
         })
+      } else {
+        error('This link is not valid')
+        return res.status(401).send({
+          statusCode: 401,
+          results: {},
+          errors: ['This link is not valid'],
+        })
+      }
     })
   } catch (err) {
-    console.error(err)
+    error(err.message)
+    return res.status(500).send({
+      statusCode: 500,
+      results: {},
+      errors: [err.message],
+    })
   }
 }
 
@@ -571,30 +581,48 @@ export async function resetPasswordValidatingToken(
   res: Response,
 ): Promise<any> {
   const { token } = req.params
+
   try {
     jwt.verify(
       token,
       process.env.RESET_PASSWORD_SECRET,
-      (err, decodedToken) => {
-        if (err) return res.status(404).send({ error: 'This link is expired' })
-        Customer.findOne({
+      async (err, decodedToken) => {
+        if (err) {
+          return res.status(401).send({
+            statusCode: 401,
+            results: {},
+            errors: ['This link is expired'],
+          })
+        }
+
+        const customerObj = await Customer.findOne({
           _id: decodedToken.userId,
         })
-          .then((user) => {
-            if (user) {
-              res.status(200).send(user)
-            } else {
-              res.status(404).send({ notValid: 'This link is not valid' })
-            }
+
+        if (customerObj) {
+          return res.status(200).send({
+            statusCode: 200,
+            results: {
+              ok: true,
+            },
+            errors: [],
           })
-          .catch((err) => {
-            console.error(err)
-            res.sendStatus(400)
+        } else {
+          return res.status(401).send({
+            statusCode: 401,
+            results: {},
+            errors: ['This link is not valid'],
           })
+        }
       },
     )
   } catch (err) {
-    console.error(err)
+    error(err.message)
+    return res.status(401).send({
+      statusCode: 401,
+      results: {},
+      errors: [err.message],
+    })
   }
 }
 
@@ -608,57 +636,80 @@ export async function resetPassword(req: Request, res: Response): Promise<any> {
       jwt.verify(
         token,
         process.env.RESET_PASSWORD_SECRET,
-        (err, decodedToken) => {
-          if (err)
-            return res.status(404).send({ error: 'This link is expired' })
+        async (err, decodedToken) => {
+          if (err) {
+            return res.status(401).send({
+              statusCode: 401,
+              results: {},
+              errors: ['This link is expired'],
+            })
+          }
 
-          Customer.findOne({
+          const customerObj = await Customer.findOne({
             _id: decodedToken.userId,
           })
-            .then((user) => {
-              bcrypt.compare(password, user.password, (err, isMatch) => {
-                if (err) throw err
 
-                if (isMatch) {
-                  console.log({
-                    error: 'Do not use the your current password.',
-                  })
-                } else {
-                  bcrypt.genSalt(10, (err, salt) => {
-                    bcrypt.hash(password, salt, (err, hash) => {
-                      if (err) throw err
-                      Customer.findOneAndUpdate(
-                        {
-                          _id: user._id,
-                        },
-                        {
-                          password: hash,
-                        },
-                        {
-                          runValidators: true,
-                        },
-                      )
-                        .then(() => {
-                          res.status(200).send({
-                            ok: true,
-                          })
-                        })
-                        .catch((err) => {
-                          console.error(err)
-                        })
+          bcrypt.compare(
+            password,
+            customerObj.password,
+            async (bcryptErr, isMatch) => {
+              if (bcryptErr) {
+                return res.status(401).send({
+                  statusCode: 401,
+                  results: {},
+                  errors: ['This link is expired'],
+                })
+              }
+
+              if (isMatch) {
+                return res.status(401).send({
+                  statusCode: 401,
+                  results: {},
+                  errors: ['Do not use the your current password'],
+                })
+              } else {
+                bcrypt.genSalt(10, (err, salt) => {
+                  bcrypt.hash(password, salt, async (errSalt, hash) => {
+                    if (errSalt) {
+                      return res.status(401).send({
+                        statusCode: 401,
+                        results: {},
+                        errors: ['This link is expired'],
+                      })
+                    }
+
+                    await Customer.findOneAndUpdate(
+                      {
+                        _id: customerObj._id,
+                      },
+                      {
+                        password: hash,
+                      },
+                      {
+                        runValidators: true,
+                      },
+                    )
+
+                    return res.status(200).send({
+                      statusCode: 200,
+                      results: {
+                        ok: true,
+                      },
+                      errors: [],
                     })
                   })
-                }
-              })
-            })
-            .catch((err) => {
-              console.error(err)
-            })
+                })
+              }
+            },
+          )
         },
       )
     } else {
-      console.log({ error: 'Passwords does not match.' })
-      res.json({ error: 'Passwords does not match.' })
+      return res.status(401).send({
+        statusCode: 401,
+        results: {},
+        errors: ['Passwords does not match'],
+      })
     }
   } catch (err) {
     console.error(err)
