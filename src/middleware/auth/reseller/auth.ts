@@ -28,7 +28,7 @@ export default (req: Request, res: Response, next: NextFunction) => {
       async (error, decoded: { id: string }) => {
         if (error) {
           return res.status(401).send({
-            status_code: 401,
+            statusCode: 401,
             results: {},
             errors: [error],
           })
@@ -40,7 +40,7 @@ export default (req: Request, res: Response, next: NextFunction) => {
 
         if (!tokenizedUser) {
           return res.status(401).send({
-            status_code: 401,
+            statusCode: 401,
             results: {},
             errors: ['Invalid user.'],
           })
@@ -51,7 +51,7 @@ export default (req: Request, res: Response, next: NextFunction) => {
     )
   } catch (err) {
     return res.status(401).send({
-      status_code: 401,
+      statusCode: 401,
       results: {},
       errors: [err.message],
     })

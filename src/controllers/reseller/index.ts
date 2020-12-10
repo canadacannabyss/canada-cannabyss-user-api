@@ -95,7 +95,7 @@ export async function updateById(req: Request, res: Response): Promise<any> {
   let newUsername = slugifyUsername(username)
 
   if (!(await verifyValidResellerUsername(username, id))) {
-    newUsername = await generateRandomSlug(username)
+    newUsername = generateRandomSlug(username)
   }
   try {
     await Reseller.findOneAndUpdate(

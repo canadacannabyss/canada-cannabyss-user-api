@@ -15,9 +15,18 @@ import {
   validateImageId,
   validateUsername,
 } from '../../utils/validators/registration/customer/registration'
-import { validateLoginCustomer } from '../../utils/validators/registration/customer/login'
+import { validateCustomerReferralObj } from '../../utils/validators/registration/customer/registrationReferral'
+import { validateLoginCustomer } from '../../utils/validators/login/customer/login'
 import { error, success, warning } from '../../utils/logger/logger'
 import { subscribe } from '../../utils/mailchimp/mailchimp'
+import {
+  createNewCustomer,
+  createNewCustomerProfileImage,
+  createNewCustomerReferral,
+  updateCustomer,
+  addReferredCustomers,
+} from '../../utils/models/customer/customer'
+
 import emailSend from '../../services/emailSender'
 import emailSendResetPassword from '../../services/emailSenderResetPassword'
 
@@ -44,10 +53,10 @@ export async function getAllUsers(req: Request, res: Response): Promise<any> {
 }
 
 export async function register(req: Request, res: Response): Promise<any> {
-  const { firstName, lastName, username, email, password, password2 } = req.body
+  const { names, username, email, password, password2 } = req.body
 
   const validation = validateCustomerObj(
-    { firstName, lastName },
+    names,
     username,
     email,
     password,
@@ -59,7 +68,7 @@ export async function register(req: Request, res: Response): Promise<any> {
       warning(error)
     })
     return res.status(400).send({
-      status_code: 400,
+      statusCode: 400,
       results: {},
       errors: validation.errors,
     })
@@ -72,7 +81,7 @@ export async function register(req: Request, res: Response): Promise<any> {
   if (existingCustomer) {
     warning('This email is already attached to another account.')
     return res.status(400).send({
-      status_code: 400,
+      statusCode: 400,
       results: {},
       errors: ['This email is already attached to another account.'],
     })
@@ -100,99 +109,47 @@ export async function register(req: Request, res: Response): Promise<any> {
         } while (!validateImageId(newId))
       }
 
-      const newCustomerProfileImage = new CustomerProfileImage({
-        id: newId,
-        name: 'default-user.jpg',
-        size: 11800,
-        key: 'default/users/default-user.jpg',
-        url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
-      })
+      try {
+        const customerProfileImageObj = await createNewCustomerProfileImage(
+          newId,
+        )
 
-      newCustomerProfileImage
-        .save()
-        .then(async (image) => {
-          const newCustomer = new Customer({
-            id: newId,
-            names: {
-              firstName,
-              lastName,
-            },
-            email,
-            username: newUsername,
-            password: hash,
-            profileImage: image._id,
-            origin: 'Local',
-          })
+        const newCustomerObj = await createNewCustomer(
+          newId,
+          names,
+          email,
+          newUsername,
+          hash,
+          customerProfileImageObj._id,
+          'Local',
+        )
 
-          newCustomer
-            .save()
-            .then((userObj) => {
-              const newReferral = new CustomerReferral({
-                customer: userObj._id,
-                referredCustomers: [],
-              })
+        const newReferralObj = await createNewCustomerReferral(
+          newCustomerObj._id,
+        )
 
-              newReferral
-                .save()
-                .then((referralObj) => {
-                  Customer.findOneAndUpdate(
-                    {
-                      _id: userObj._id,
-                    },
-                    {
-                      referral: referralObj._id,
-                    },
-                    {
-                      runValidators: true,
-                    },
-                  )
-                    .then(() => {
-                      emailSend(userObj.email, userObj._id)
-                      success('Customer created.')
-                      success('Customer registration email sent.')
-                      return res.status(200).send({
-                        status_code: 200,
-                        results: {
-                          ok: true,
-                        },
-                        errors: [],
-                      })
-                    })
-                    .catch((err: Error) => {
-                      error(err.message)
-                      return res.status(500).send({
-                        status_code: 500,
-                        results: [],
-                        errors: [err.message],
-                      })
-                    })
-                })
-                .catch((err: Error) => {
-                  error(err.message)
-                  return res.status(500).send({
-                    status_code: 500,
-                    results: [],
-                    errors: [err.message],
-                  })
-                })
-            })
-            .catch((err: Error) => {
-              error(err.message)
-              return res.status(500).send({
-                status_code: 500,
-                results: [],
-                errors: [err.message],
-              })
-            })
+        await updateCustomer(newCustomerObj._id, newReferralObj._id)
+
+        emailSend(newCustomerObj.email, newCustomerObj._id)
+
+        success('Customer created.')
+        success('Customer registration email sent.')
+
+        return res.status(200).send({
+          statusCode: 200,
+          results: {
+            ok: true,
+          },
+          errors: [],
         })
-        .catch((err: Error) => {
-          error(err.message)
-          return res.status(500).send({
-            status_code: 500,
-            results: [],
-            errors: [err.message],
-          })
+      } catch (err: Error) {
+        error(err.message)
+        return res.status(500).send({
+          statusCode: 500,
+          results: [],
+          errors: [err.message],
         })
+      }
     })
   })
 }
@@ -201,160 +158,108 @@ export async function registerReferral(
   req: Request,
   res: Response,
 ): Promise<any> {
-  const {
-    firstName,
-    lastName,
+  const { names, username, email, password, password2, referralId } = req.body
+
+  const validation = validateCustomerReferralObj(
+    names,
     username,
     email,
     password,
     password2,
     referralId,
-  } = req.body
+  )
 
-  const errors = []
-
-  if (
-    !firstName ||
-    firstName.length === 0 ||
-    !lastName ||
-    lastName.length === 0 ||
-    !username ||
-    username.length === 0 ||
-    !email ||
-    email.length === 0 ||
-    !password ||
-    password.length === 0 ||
-    !password2 ||
-    password2.length === 0
-  ) {
-    errors.push({ msg: 'Please enter all fields' })
-  }
-
-  const slugifiedUsername = slugifyUsername(username)
-
-  try {
-    const existingUser = await Customer.findOne({
-      username: slugifiedUsername,
+  if (!validation.valid) {
+    validation.errors.map((error: string) => {
+      warning(error)
     })
-    if (existingUser) {
-      errors.push({ msg: 'Username already exist' })
-    }
-  } catch (err) {
-    console.error(err)
-    errors.push({ msg: 'Error while finding existing user' })
+    return res.status(400).send({
+      statusCode: 400,
+      results: {},
+      errors: validation.errors,
+    })
   }
 
-  if (password !== password2) {
-    errors.push({ msg: 'Passwords do not match' })
+  const existingCustomer = await Customer.findOne({
+    email,
+  })
+
+  if (existingCustomer) {
+    warning('This email is already attached to another account.')
+    return res.status(400).send({
+      statusCode: 400,
+      results: {},
+      errors: ['This email is already attached to another account.'],
+    })
   }
 
-  if (password.length < 6) {
-    errors.push({ msg: 'Password must be at least 6 characters' })
+  let newUsername = slugifyUsername(username)
+
+  if (!validateUsername(newUsername)) {
+    do {
+      newUsername = generateRandomUsername(username)
+    } while (!validateUsername(newUsername))
   }
 
-  if (errors.length > 0) {
-    res.json(errors)
-  } else {
-    Customer.findOne({ email })
-      .then((user) => {
-        if (user) {
-          errors.push({ msg: 'Email already exists' })
-          res.json(errors)
-        } else {
-          const id = v4()
+  bcrypt.genSalt(10, (errGenSalt: Error, salt: string) => {
+    if (errGenSalt) throw errGenSalt
 
-          const newUserProfileImage = new CustomerProfileImage({
-            id,
-            name: 'default-user.jpg',
-            size: 11800,
-            key: 'default/users/default-user.jpg',
-            url: `${process.env.FULL_BUCKET_URL}/default/users/default-user.jpg`,
-          })
+    bcrypt.hash(password, salt, async (errHash: Error, hash: string) => {
+      if (errHash) throw errHash
 
-          newUserProfileImage
-            .save()
-            .then((image) => {
-              const newUser = new Customer({
-                id,
-                names: {
-                  firstName,
-                  lastName,
-                },
-                email,
-                username: slugifiedUsername,
-                password,
-                profileImage: image._id,
-                isVerified: false,
-                origin: 'Local',
-              })
+      let newId = generateUniqueId(8, 'hex', 36)
 
-              bcrypt.genSalt(10, (err, salt) => {
-                bcrypt.hash(newUser.password, salt, (err, hash) => {
-                  if (err) throw err
-                  newUser.password = hash
-                  newUser.save().then((user) => {
-                    const newCustomerReferral = new CustomerReferral({
-                      customer: user._id,
-                      referredCustomers: [],
-                      createdAt: Date.now(),
-                    })
-                    newCustomerReferral.save().then((referral) => {
-                      Customer.findOneAndUpdate(
-                        {
-                          _id: user._id,
-                        },
-                        {
-                          referral: referral._id,
-                        },
-                        {
-                          runValidators: true,
-                        },
-                      ).then(() => {
-                        CustomerReferral.findOne({
-                          _id: referralId,
-                        })
-                          .then((referral) => {
-                            const referredUsersObj = [
-                              ...referral.referredCustomers,
-                            ]
-                            referredUsersObj.push(user._id)
-                            CustomerReferral.findOneAndUpdate(
-                              {
-                                _id: referral._id,
-                              },
-                              {
-                                referredCustomers: referredUsersObj,
-                              },
-                              {
-                                runValidators: true,
-                              },
-                            )
-                              .then(() => {
-                                emailSend(user.email, user._id)
-                                res.status(200).send({ ok: true })
-                              })
-                              .catch((err) => {
-                                console.log(err)
-                              })
-                          })
-                          .catch((err) => {
-                            console.error(err)
-                          })
-                      })
-                    })
-                  })
-                })
-              })
-            })
-            .catch((err) => {
-              console.error(err)
-            })
-        }
-      })
-      .catch((err) => {
-        console.error(err)
-      })
-  }
+      if (!validateImageId(newId)) {
+        do {
+          newId = generateUniqueId(8, 'hex', 36)
+        } while (!validateImageId(newId))
+      }
+
+      try {
+        const customerProfileImageObj = await createNewCustomerProfileImage(
+          newId,
+        )
+
+        const newCustomerObj = await createNewCustomer(
+          newId,
+          names,
+          email,
+          newUsername,
+          hash,
+          customerProfileImageObj._id,
+          'Local',
+        )
+
+        const newReferralObj = await createNewCustomerReferral(
+          newCustomerObj._id,
+        )
+
+        await updateCustomer(newCustomerObj._id, newReferralObj._id)
+
+        await addReferredCustomers(newReferralObj._id, newCustomerObj._id)
+
+        emailSend(newCustomerObj.email, newCustomerObj._id)
+
+        success('Customer created with referral.')
+        success('Customer registration email sent.')
+
+        return res.status(200).send({
+          statusCode: 200,
+          results: {
+            ok: true,
+          },
+          errors: [],
+        })
+      } catch (err: Error) {
+        error(`on registration referral - ${err.message}`)
+        return res.status(500).send({
+          statusCode: 500,
+          results: [],
+          errors: [err.message],
+        })
+      }
+    })
+  })
 }
 
 export function token(req: Request, res: Response): Promise<any> {
@@ -378,49 +283,43 @@ export function token(req: Request, res: Response): Promise<any> {
 export async function login(req: Request, res: Response): Promise<any> {
   const { email, password } = req.body
 
-  const validation = validateLoginCustomer(email, password)
+  const validation = await validateLoginCustomer(email, password)
 
   if (!validation.valid) {
     validation.errors.map((error: string) => {
       warning(error)
     })
     return res.status(400).send({
-      status_code: 400,
+      statusCode: 400,
       results: {},
       errors: validation.errors,
     })
   }
 
   try {
-    const userObjVerified = await Customer.findOne({
-      email,
-      isVerified: true,
-    })
-
-    if (!userObjVerified) {
-      warning('User does not exists.')
-      return res.status(400).send({
-        status_code: 400,
-        results: {},
-        errors: ['User does not exists.'],
-      })
-    }
-
     bcrypt.compare(
       password,
-      userObjVerified.password,
+      validation.results.password,
       (err: Error, isMatch: boolean) => {
         if (err) throw err
 
         if (isMatch) {
-          const accessToken: string = generateAccessToken(userObjVerified._id)
-          const refreshToken: string = generateRefreshToken(userObjVerified._id)
+          const accessToken: string = generateAccessToken(
+            validation.results._id,
+          )
+          const refreshToken: string = generateRefreshToken(
+            validation.results._id,
+          )
 
-          res.status(200).send({ accessToken, refreshToken })
+          return res.status(200).send({
+            statusCode: 200,
+            results: { accessToken, refreshToken },
+            errors: [],
+          })
         } else {
           warning('Invalid password.')
           return res.status(400).send({
-            status_code: 400,
+            statusCode: 400,
             results: {},
             errors: ['Invalid password.'],
           })
@@ -430,7 +329,7 @@ export async function login(req: Request, res: Response): Promise<any> {
   } catch (err) {
     error(err.message)
     return res.status(500).send({
-      status_code: 500,
+      statusCode: 500,
       results: {},
       errors: [err.message],
     })
@@ -442,6 +341,8 @@ export async function decodeToken(
   res: Response,
 ): Promise<Response> {
   const { accessToken } = req.body
+  console.log(req.body)
+
   const authHeader: string = req.headers.authorization
   const tokenHeader: string = authHeader && authHeader.split(' ')[1]
 
@@ -451,6 +352,7 @@ export async function decodeToken(
     accessToken,
     process.env.ACCESS_TOKEN_SECRET,
     async (err: Error, user: { id: string }) => {
+      console.log('user:', user)
       if (err) return res.sendStatus(403)
       const userInfoObj = await Customer.findOne({
         _id: user.id,
@@ -463,6 +365,7 @@ export async function decodeToken(
           path: 'referral',
           model: CustomerReferral,
         })
+
       if (!userInfoObj) return res.sendStatus(404)
       return res.status(200).send(userInfoObj)
     },

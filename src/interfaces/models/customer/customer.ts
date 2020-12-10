@@ -28,6 +28,7 @@ export interface ICustomer extends Document {
 
 export interface ICustomerProfileImage extends Document {
   _id: string
+  id: string | null
   name: string
   size: number
   key: string

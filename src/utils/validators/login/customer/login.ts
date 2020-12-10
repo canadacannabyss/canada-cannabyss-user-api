@@ -1,7 +1,15 @@
-export function validateLoginCustomer(
+import Customer from '../../../../models/customer/Customer'
+
+import { ICustomer } from '../../../../interfaces/models/customer/customer'
+
+export async function validateLoginCustomer(
   email: string,
   password: string,
-): { errors: string[]; valid: boolean } {
+): Promise<{
+  results: ICustomer | object
+  errors: string[]
+  valid: boolean
+}> {
   const errors: string[] = []
 
   if (!email) {
@@ -25,13 +33,24 @@ export function validateLoginCustomer(
     }
   }
 
+  const userObjVerified = await Customer.findOne({
+    email,
+    isVerified: true,
+  })
+
+  if (!userObjVerified) {
+    errors.push('Customer does not exists.')
+  }
+
   if (errors.length > 0) {
     return {
+      results: {},
       errors,
       valid: false,
     }
   } else {
     return {
+      results: userObjVerified,
       errors: [],
       valid: true,
     }

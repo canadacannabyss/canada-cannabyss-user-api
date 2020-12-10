@@ -6,12 +6,13 @@ import {
   ICustomerProfileImage,
 } from '../../../../interfaces/models/customer/customer'
 
-export function validateCustomerObj(
+export function validateCustomerReferralObj(
   names: { firstName: string; lastName: string },
   username: string,
   email: string,
   password: string,
   password2: string,
+  referralId: string,
 ): { errors: string[]; valid: boolean } {
   console.log('names:', names)
 
@@ -72,6 +73,14 @@ export function validateCustomerObj(
 
   if (password !== password2) {
     errors.push('Passwords must match')
+  }
+
+  if (!referralId) {
+    errors.push('Referral id is required.')
+  } else {
+    if (referralId.length === 0) {
+      errors.push('Referral id must be valid.')
+    }
   }
 
   console.log('errors validated:', errors)

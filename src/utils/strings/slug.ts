@@ -1,14 +1,17 @@
 import slugify from 'slugify'
-import uuid from 'uuid'
+import { v4 } from 'uuid'
 
 export function slugifyString(string: string): string {
   return slugify(string).toLowerCase()
 }
 
 export function generateRandomSlug(slug: string): string {
-  const id = uuid.v4()
-  const generatedNewSlug = `${slug}-${id}`
-  return generatedNewSlug
+  const random = v4()
+  let finalUuid = ''
+  random.split('-').map((string) => {
+    finalUuid += string[0]
+  })
+  return `${slug}-${finalUuid}`
 }
 
 export function slugifyUsername(username: string): string {
