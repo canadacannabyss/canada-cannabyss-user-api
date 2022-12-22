@@ -59,7 +59,7 @@
     "flash": "^1.1.0",
     "get-audio-duration": "^2.0.2",
     "http-proxy-middleware": "^1.0.4",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.0",
     "lodash": "^4.17.15",
     "mongoose": "^5.9.21",
     "morgan": "^1.10.0",
